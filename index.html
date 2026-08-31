@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Letter Trails</title>
+<style>
+  :root {
+    --paper: #f3ead7; --ink: #2b2b2f; --accent: #b3543f; --desk: #6b4f3a;
+    --tile: #e8dcc0; --focus: #1a5fb4;
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--desk); }
+  body { font-family: Georgia, 'Times New Roman', serif; color: var(--ink); }
+  body.larger-text { font-size: 120%; }
+  body.high-contrast { --paper: #ffffff; --ink: #000000; --accent: #0044cc; --tile: #ffffff; --focus: #ff8000; }
+
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  #app { position: fixed; inset: 0; display: grid; pointer-events: none;
+    grid-template-areas: "left main right" "tray tray tray";
+    grid-template-columns: 240px 1fr 240px;
+    grid-template-rows: 1fr auto; }
+  #app > * { pointer-events: auto; }
+
+  button { font: inherit; min-width: 44px; min-height: 44px; padding: 10px 18px;
+    border: 2px solid var(--ink); border-radius: 8px; background: var(--paper);
+    color: var(--ink); cursor: pointer; }
+  button:hover { filter: brightness(1.05); }
+  button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: #fff; font-size: 1.3em; font-weight: bold; }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; padding: calc(16px + var(--sat)) calc(16px + var(--sar)) calc(16px + var(--sab)) calc(16px + var(--sal));
+    background: rgba(30, 22, 16, 0.55); z-index: 20; overflow-y: auto; }
+  .screen.visible { display: flex; }
+  .panel { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
+    padding: 24px; max-width: 70ch; width: min(92vw, 560px); max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+  .panel h1, .panel h2 { margin-top: 0; line-height: 1.2; }
+  .panel .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .muted { opacity: 0.75; font-size: 0.9em; }
+
+  /* Play HUD rails */
+  #hud { display: none; }
+  #hud.visible { display: contents; }
+  .rail { background: rgba(243, 234, 215, 0.94); border: 2px solid var(--ink);
+    border-radius: 10px; margin: calc(10px + var(--sat)) 10px calc(10px + var(--sab)); padding: 12px; overflow-y: auto; }
+  #rail-left { grid-area: left; margin-left: calc(10px + var(--sal)); }
+  #rail-right { grid-area: right; margin-right: calc(10px + var(--sar)); }
+  #rail-left h2, #rail-right h2 { margin: 0 0 8px; font-size: 1.05em; }
+  #word-list { list-style: none; margin: 0; padding: 0; }
+  #word-list li { padding: 6px 8px; border-radius: 6px; letter-spacing: 0.12em; font-weight: bold; }
+  #word-list li.found { text-decoration: line-through; opacity: 0.55; }
+  #word-list li.found::after { content: " ✓"; }
+  #hud-stats { font-size: 0.95em; line-height: 1.6; }
+  #tray { grid-area: tray; display: none; gap: 8px; justify-content: center;
+    padding: 8px calc(8px + var(--sar)) calc(8px + var(--sab)) calc(8px + var(--sal)); }
+
+  /* Compact: rails become drawers */
+  @media (max-width: 1023px) {
+    #app { grid-template-columns: 1fr; grid-template-areas: "main" "tray"; }
+    .rail { position: fixed; top: 0; bottom: 0; width: min(80vw, 320px); margin: 0; z-index: 15;
+      transition: transform 0.25s ease; border-radius: 0; }
+    #rail-left { left: 0; transform: translateX(-105%); padding-top: calc(12px + var(--sat)); }
+    #rail-right { right: 0; transform: translateX(105%); padding-top: calc(12px + var(--sat)); }
+    #rail-left.open, #rail-right.open { transform: none; }
+    #tray { display: flex; }
+  }
+  /* Portrait mobile: bottom action tray */
+  @media (max-width: 1023px) and (orientation: portrait) {
+    #tray button { flex: 1; max-width: 140px; }
+  }
+
+  #compat { display: none; position: fixed; inset: 0; z-index: 100; background: var(--paper);
+    color: var(--ink); align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  #compat.visible { display: flex; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  #live { position: fixed; bottom: calc(4px + var(--sab)); left: 50%; transform: translateX(-50%);
+    z-index: 30; pointer-events: none; }
+
+  .score-row { display: flex; justify-content: space-between; gap: 24px; padding: 3px 0; }
+  .score-row.total { border-top: 2px solid var(--ink); font-weight: bold; margin-top: 6px; padding-top: 8px; }
+  .journey-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 8px; }
+  .journey-grid button.done { background: var(--accent); color: #fff; }
+  .journey-grid button:disabled { text-decoration: none; }
+  .rule-card { border: 2px solid var(--ink); border-radius: 8px; padding: 12px; margin: 8px 0; background: var(--tile); }
+  label.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; min-height: 44px; }
+  input[type=range] { min-width: 140px; min-height: 44px; }
+  select { font: inherit; min-height: 44px; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "./node_modules/three/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game-canvas" aria-hidden="true"></canvas>
+
+<div id="compat" role="alert">
+  <div>
+    <h1>Letter Trails needs WebGL</h1>
+    <p>Your browser could not create a WebGL context, so the 3D board cannot start.
+    Your local progress and settings are preserved. Try a current version of
+    Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.</p>
+  </div>
+</div>
+
+<div id="app">
+  <!-- Play HUD -->
+  <div id="hud">
+    <aside id="rail-left" class="rail" aria-label="Objective and word list">
+      <h2 id="objective">Find the words</h2>
+      <p id="progress-text" class="muted">0 of 0</p>
+      <ul id="word-list" aria-label="Words to find"></ul>
+    </aside>
+    <aside id="rail-right" class="rail" aria-label="Status and actions">
+      <h2>Status</h2>
+      <div id="hud-stats" aria-live="off">
+        <div>Score: <span id="hud-score">0</span></div>
+        <div>Time: <span id="hud-time">0:00</span></div>
+        <div id="hud-limit" class="muted"></div>
+      </div>
+      <div class="row" style="flex-direction:column">
+        <button id="btn-pause">Pause</button>
+        <button id="btn-hint">Hint (H)</button>
+        <button id="btn-camera">Reset Camera (C)</button>
+      </div>
+    </aside>
+    <div id="tray">
+      <button id="tray-words" aria-controls="rail-left">Words</button>
+      <button id="tray-hint">Hint</button>
+      <button id="tray-pause">Pause</button>
+      <button id="tray-status" aria-controls="rail-right">Status</button>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <section id="screen-title" class="screen" aria-labelledby="title-h">
+    <div class="panel" style="text-align:center">
+      <h1 id="title-h">Letter Trails</h1>
+      <p class="muted">Trace straight lines through the letter grid to find the themed words.</p>
+      <div class="row" style="justify-content:center; flex-direction:column; align-items:stretch">
+        <button id="btn-play" class="primary">Play</button>
+        <button id="btn-daily">Daily Challenge</button>
+        <button id="btn-journey">Journey</button>
+        <button id="btn-practice">Practice</button>
+        <button id="btn-challenge">Challenge</button>
+        <button id="btn-help">How to Play</button>
+        <button id="btn-settings">Settings</button>
+      </div>
+      <p id="profile-line" class="muted"></p>
+    </div>
+  </section>
+
+  <!-- Mode setup -->
+  <section id="screen-mode" class="screen" aria-labelledby="mode-h">
+    <div class="panel">
+      <h2 id="mode-h">Mode</h2>
+      <p id="mode-desc"></p>
+      <dl id="mode-facts"></dl>
+      <div class="row">
+        <button id="btn-mode-start" class="primary">Start</button>
+        <button id="btn-mode-back">Back</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Journey map -->
+  <section id="screen-journey" class="screen" aria-labelledby="journey-h">
+    <div class="panel">
+      <h2 id="journey-h">Journey</h2>
+      <p class="muted">Complete each stage to unlock the next. Mastery stages every 8th level.</p>
+      <div id="journey-grid" class="journey-grid"></div>
+      <div class="row"><button id="btn-journey-back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- Practice -->
+  <section id="screen-practice" class="screen" aria-labelledby="practice-h">
+    <div class="panel">
+      <h2 id="practice-h">Practice</h2>
+      <p class="muted">Unranked. Restart freely; no effect on competitive rating.</p>
+      <div class="row" style="flex-direction:column; align-items:stretch">
+        <button data-diff="easy">Easy — 6×6, 5 words</button>
+        <button data-diff="medium">Medium — 7×7, 7 words</button>
+        <button data-diff="hard">Hard — 9×9, 10 words</button>
+      </div>
+      <div class="row"><button id="btn-practice-back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- Challenge -->
+  <section id="screen-challenge" class="screen" aria-labelledby="challenge-h">
+    <div class="panel">
+      <h2 id="challenge-h">Challenge</h2>
+      <p class="muted">Constrained goals: move limits and speed targets.</p>
+      <div id="challenge-list" class="row" style="flex-direction:column; align-items:stretch"></div>
+      <div class="row"><button id="btn-challenge-back">Back</button></div>
+    </div>
+  </section>
+
+  <!-- Pause / settings overlay -->
+  <section id="screen-pause" class="screen" aria-labelledby="pause-h" role="dialog" aria-modal="true">
+    <div class="panel">
+      <h2 id="pause-h">Paused</h2>
+      <div class="row" style="flex-direction:column; align-items:stretch">
+        <button id="btn-resume" class="primary">Resume</button>
+        <button id="btn-pause-settings">Settings</button>
+        <button id="btn-pause-help">Help</button>
+        <button id="btn-leave">Leave Round</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="screen-settings" class="screen" aria-labelledby="settings-h" role="dialog" aria-modal="true">
+    <div class="panel">
+      <h2 id="settings-h">Settings</h2>
+      <label class="setting">Music volume <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
+      <label class="setting">Effects volume <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
+      <label class="setting">Ambience volume <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
+      <label class="setting">Quality tier
+        <select id="set-quality">
+          <option value="auto">Auto</option><option value="low">Low</option>
+          <option value="medium">Medium</option><option value="high">High</option>
+        </select></label>
+      <label class="setting">Reduced motion <input id="set-reduced-motion" type="checkbox"></label>
+      <label class="setting">High contrast <input id="set-high-contrast" type="checkbox"></label>
+      <label class="setting">Color-vision palette
+        <select id="set-colorvision">
+          <option value="default">Default</option><option value="deuteranopia">Deuteranopia-safe</option>
+          <option value="tritanopia">Tritanopia-safe</option>
+        </select></label>
+      <label class="setting">Larger text <input id="set-larger-text" type="checkbox"></label>
+      <label class="setting">Left-handed controls <input id="set-left-handed" type="checkbox"></label>
+      <div class="row">
+        <button id="btn-replay-tutorial">Replay Tutorial</button>
+        <button id="btn-settings-close" class="primary">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="screen-results" class="screen" aria-labelledby="results-h">
+    <div class="panel">
+      <h2 id="results-h">Round Complete</h2>
+      <div id="score-breakdown" aria-label="Score breakdown"></div>
+      <p id="results-extra" class="muted"></p>
+      <div id="achievements-earned"></div>
+      <div id="leaderboard-box"></div>
+      <div class="row">
+        <button id="btn-retry" class="primary">Retry</button>
+        <button id="btn-next">Next</button>
+        <button id="btn-results-menu">Menu</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Help -->
+  <section id="screen-help" class="screen" aria-labelledby="help-h">
+    <div class="panel">
+      <h2 id="help-h">How to Play</h2>
+      <div class="rule-card"><strong>Trace words.</strong> Drag (or use arrow keys + Enter) across a straight line of letters — horizontal, vertical, or diagonal — to spell a word from the list.</div>
+      <div class="rule-card"><strong>Both directions.</strong> Words may read forwards or backwards along the line.</div>
+      <div class="rule-card"><strong>Clean streaks.</strong> Invalid selections reset your clean bonus. Each word scores 20 points per letter, plus clean, speed, and daily-streak bonuses.</div>
+      <div class="rule-card"><strong>Keyboard.</strong> Arrows move the cursor, Enter/Space starts or confirms a line, Escape cancels or pauses, H gives a hint, C resets the camera.</div>
+      <div class="row"><button id="btn-help-close" class="primary">Close</button></div>
+    </div>
+  </section>
+
+  <!-- Tutorial overlay -->
+  <section id="screen-tutorial" class="screen" aria-labelledby="tutorial-h" style="background:rgba(30,22,16,0.25)">
+    <div class="panel">
+      <h2 id="tutorial-h">Lesson</h2>
+      <p id="tutorial-text"></p>
+      <div class="row">
+        <button id="btn-tutorial-next" class="primary">Got it</button>
+        <button id="btn-tutorial-skip">Skip Tutorial</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="live" aria-live="polite" role="status"></div>
+  <div id="live-assertive" class="sr-only" aria-live="assertive" role="alert"></div>
+  <p id="board-desc" class="sr-only"></p>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

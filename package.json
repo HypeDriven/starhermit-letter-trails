@@ -1,0 +1,17 @@
+{
+  "name": "letter-trails",
+  "version": "1.0.0",
+  "description": "Letter Trails — trace straight lines through letter grids to find themed words.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.185.0"
+  }
+}
