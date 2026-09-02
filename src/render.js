@@ -337,7 +337,7 @@ export function setQuality(newTier) {
   const cap = QUALITY_TIERS[tier].pixelRatioCap;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   renderer.shadowMap.enabled = QUALITY_TIERS[tier].shadows;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   scene.traverse((o) => {
     if (o.isDirectionalLight) o.castShadow = QUALITY_TIERS[tier].shadows;
   });

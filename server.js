@@ -188,8 +188,10 @@ async function handleApi(req, res, urlPath, query) {
     } catch {
       return sendJson(res, 400, { error: 'bad-json' });
     }
-    res.writeHead(204);
-    return res.end();
+    // Acknowledge with a JSON body: fetch() POSTs that receive a bodyless
+    // response (204 / Content-Length: 0) surface as net::ERR_ABORTED in
+    // Chromium's network stack even though they succeeded.
+    return sendJson(res, 200, { ok: true });
   }
 
   return sendJson(res, 404, { error: 'unknown-api-route' });
