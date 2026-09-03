@@ -2,7 +2,7 @@
 
 // Smoke script (not part of node --test): plays a journey level and a daily
 // to completion purely through legal actions, printing state hashes.
-// Run: node test/smoke.mjs
+// Run: node tests/smoke.mjs
 
 import * as rules from '../src/rules.js';
 import * as content from '../src/content.js';
