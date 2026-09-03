@@ -10,6 +10,9 @@ import { uid } from './util.js';
 let launchToken = null;   // memory only
 let clockOffsetMs = 0;    // serverNow - clientNow, round-trip adjusted
 let online = true;
+let hosted = false;       // set by the one-time /api/v1/time probe; when false,
+                          // no other API route may be requested (they do not
+                          // exist on every host, and a 404 is a console error)
 let telemetryQueue = [];
 let lastTelemetryAt = 0;
 const TELEMETRY_THROTTLE_MS = 1500;
@@ -87,17 +90,24 @@ export async function api(path, { method = 'GET', body = null, retries = 2 } = {
 }
 
 export function isOnline() { return online; }
+export function isHosted() { return hosted; }
 
 // ---------------------------------------------------------------------------
 // Server time (round-trip-adjusted) for daily boundary countdowns
 // ---------------------------------------------------------------------------
 
+// The one probe every host is guaranteed to answer. Its result gates every
+// other API call: without it the game runs fully local and silent.
 export async function syncTime() {
   const t0 = Date.now();
   const res = await api('/api/v1/time', { retries: 1 });
-  if (!res.ok || !res.data || !Number.isFinite(res.data.now)) return false;
+  if (!res.ok || !res.data || !Number.isFinite(res.data.now)) {
+    hosted = false;
+    return false;
+  }
   const t1 = Date.now();
   clockOffsetMs = res.data.now - (t0 + (t1 - t0) / 2);
+  hosted = true;
   return true;
 }
 
@@ -113,6 +123,7 @@ export function msUntilDailyBoundary() {
 }
 
 export async function fetchDaily() {
+  if (!hosted) return { ok: false, status: 0, error: 'not-hosted' };
   return api('/api/v1/daily');
 }
 
@@ -121,10 +132,12 @@ export async function fetchDaily() {
 // ---------------------------------------------------------------------------
 
 export async function submitScore(envelope) {
+  if (!hosted) return { ok: false, status: 0, error: 'not-hosted' };
   return api('/api/v1/scores', { method: 'POST', body: envelope });
 }
 
 export async function fetchLeaderboard(board = 'global', date = null) {
+  if (!hosted) return { ok: false, status: 0, error: 'not-hosted', data: { scores: [] } };
   const q = '?board=' + encodeURIComponent(board) + (date ? '&date=' + encodeURIComponent(date) : '');
   return api('/api/v1/scores' + q);
 }
@@ -147,6 +160,12 @@ export function telemetry(event, data = {}) {
 
 export async function flushTelemetry() {
   if (!telemetryQueue.length) return;
+  if (!hosted) {
+    // Host has no events route: keep the queue bounded locally, send nothing.
+    telemetryQueue = telemetryQueue.slice(-50);
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(telemetryQueue)); } catch { /* ignore */ }
+    return;
+  }
   const batch = telemetryQueue;
   const res = await api('/api/v1/events', { method: 'POST', body: { events: batch }, retries: 0 });
   if (res.ok || res.status === 204) {
