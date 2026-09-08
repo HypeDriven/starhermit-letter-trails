@@ -292,6 +292,15 @@ test('daily definition is deterministic per UTC date', () => {
   assert.notEqual(a.seed, c.seed);
 });
 
+test('utcDay rolls over at 03:00 UTC regardless of local timezone', async () => {
+  const { utcDay } = await import('../src/util.js');
+  assert.equal(utcDay(Date.UTC(2026, 0, 5, 2, 59, 59)), '2026-01-04');
+  assert.equal(utcDay(Date.UTC(2026, 0, 5, 3, 0, 0)), '2026-01-05');
+  assert.equal(utcDay(Date.UTC(2026, 11, 31, 23, 0, 0)), '2026-12-31');
+  assert.equal(utcDay(Date.UTC(2027, 0, 1, 0, 0, 0)), '2026-12-31');
+  assert.equal(utcDay(Date.UTC(2027, 0, 1, 3, 0, 0)), '2027-01-01');
+});
+
 // ---------------------------------------------------------------------------
 // Fuzz malformed commands: no throws, no hangs
 // ---------------------------------------------------------------------------

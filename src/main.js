@@ -129,6 +129,7 @@ function commitSelection() {
   const cells = game.selection;
   const res = issueCommand({ type: 'select', cells });
   game.movesUsed++;
+  ui.updateMovesUsed(game.movesUsed);
   if (res.ok) {
     audio.sfx.wordFound();
     render.commitWord(cells);
@@ -196,9 +197,25 @@ function finishRound() {
   const best = session.recordBestScore(game.def.id, game.state.score.total);
   platform.telemetry('round-end', { mode: game.mode, score: game.state.score.total, invalid: game.state.invalidActions });
 
+  // Evaluate challenge constraints (move limit / time target) for the results.
+  let constraint = '';
+  const ch = game.def.mechanics && game.def.mechanics.challenge;
+  if (ch && (ch.moveLimit || ch.timeTargetMs)) {
+    const parts = [];
+    if (ch.moveLimit) {
+      const okMoves = game.movesUsed <= ch.moveLimit;
+      parts.push((okMoves ? 'met' : 'missed') + ' move limit (' + game.movesUsed + '/' + ch.moveLimit + ')');
+    }
+    if (ch.timeTargetMs) {
+      const okTime = game.state.elapsedMs <= ch.timeTargetMs;
+      parts.push((okTime ? 'beat' : 'missed') + ' time target (' + Math.floor(game.state.elapsedMs / 1000) + 's/' + Math.floor(ch.timeTargetMs / 1000) + 's)');
+    }
+    constraint = 'Challenge ' + parts.join(', ') + '.';
+  }
+
   game.sess.transition('results', 'round-complete');
   const nextLabel = game.mode === 'journey' ? 'Next Level' : 'Play Again';
-  ui.showResults(game.state, { achievements: earned, best, nextLabel });
+  ui.showResults(game.state, { achievements: earned, best, nextLabel, constraint });
 
   // Submit validated replay (daily + journey are ranked; failures are soft).
   if (game.mode === 'daily' || game.mode === 'journey') {
@@ -214,10 +231,15 @@ function finishRound() {
   }
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
 function renderLeaderboard(scores) {
   const rows = scores.slice(0, 10).map((s, i) =>
-    '<div class="score-row"><span>' + (i + 1) + '. ' + (s.player || 'player') +
-    '</span><span>' + s.score + '</span></div>').join('');
+    '<div class="score-row"><span>' + (i + 1) + '. ' + escapeHtml(s.player || 'player') +
+    '</span><span>' + (Number.isFinite(s.score) ? s.score : 0) + '</span></div>').join('');
   return rows ? '<h3>Leaderboard</h3>' + rows : '';
 }
 
@@ -437,6 +459,7 @@ ui.on('daily', () => {
 });
 
 ui.on('journey', () => {
+  if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-journey');
   const progress = session.loadJourneyProgress();
   ui.renderJourneyGrid(content.JOURNEY, progress.completed, (lv) => {
     game.pendingDef = { ...lv, label: 'Journey — Level ' + (content.JOURNEY.indexOf(lv) + 1), desc: 'Find every themed word on the board.' };
@@ -446,7 +469,10 @@ ui.on('journey', () => {
   ui.showScreen('journey');
 });
 
-ui.on('practice', () => ui.showScreen('practice'));
+ui.on('practice', () => {
+  if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-practice');
+  ui.showScreen('practice');
+});
 
 ui.on('practice-pick', (diff) => {
   const def = content.practiceDefinition(diff, Math.floor(Math.random() * 0x7fffffff));
@@ -456,6 +482,7 @@ ui.on('practice-pick', (diff) => {
 });
 
 ui.on('challenge', () => {
+  if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-challenge');
   ui.renderChallengeList(content.CHALLENGES, (c) => {
     const def = content.challengeDefinition(c.id);
     game.pendingDef = { ...def, label: 'Challenge — ' + c.label, desc: 'Beat the constraint to master this board.' };

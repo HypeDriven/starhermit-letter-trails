@@ -48,8 +48,13 @@ export function dateStr(d) {
 function hex(n) { let s=''; while (n>0){ n=Math.floor(n/36); s=String.fromCharCode(97+(n%36))+s; } return s||'a'; }
 export function uid() { return Date.now().toString(16)+'-'+Math.random().toString(16).slice(2,8)+hex(Math.floor(Math.random()*40)); }
 
-// "YYYY-MM-DD" of the UTC day containing t (ms since epoch), 03:00 boundary.
-export function utcDay(t) { return dateStr(new Date(t - 3*3600e3)) + 'T'; }
+// "YYYY-MM-DD" of the UTC day containing t (ms since epoch), 03:00 UTC
+// boundary. Must use UTC getters: local getters would make the daily seed and
+// streak day depend on the client's timezone and disagree with the server.
+export function utcDay(t) {
+  const d = new Date(t - 3*3600e3);
+  return d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate());
+}
 
 const _now = () => Date.now();
 let _last = 0;

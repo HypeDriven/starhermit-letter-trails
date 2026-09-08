@@ -64,17 +64,29 @@ export function showHud(visible) {
   $('hud').classList.toggle('visible', visible);
 }
 
+let currentChallenge = null;
+
+function renderLimitLine(movesUsed) {
+  const ch = currentChallenge;
+  if (!ch) { $('hud-limit').textContent = ''; return; }
+  const parts = [];
+  if (ch.moveLimit) parts.push('Move limit: ' + ch.moveLimit + ' (used ' + movesUsed + ')');
+  if (ch.timeTargetMs) parts.push('Time target: ' + fmtTime(ch.timeTargetMs));
+  $('hud-limit').textContent = parts.join('. ') + '.';
+}
+
+export function updateMovesUsed(movesUsed) {
+  if (currentChallenge) renderLimitLine(movesUsed);
+}
+
 export function setObjective(def, state) {
   $('objective').textContent = 'Find ' + state.words.length + ' words' + (def.theme ? ' — ' + def.theme : '');
   $('board-desc').textContent = 'Board is ' + state.size + ' by ' + state.size + ' letters. ' +
     state.words.length + ' words to find. Use arrow keys to move between cells.';
   renderWordList(state);
   updateProgress(state);
-  const ch = def.mechanics && def.mechanics.challenge;
-  $('hud-limit').textContent = ch
-    ? (ch.moveLimit ? 'Move limit: ' + ch.moveLimit + '. ' : '') +
-      (ch.timeTargetMs ? 'Time target: ' + fmtTime(ch.timeTargetMs) + '.' : '')
-    : '';
+  currentChallenge = def.mechanics && def.mechanics.challenge;
+  renderLimitLine(0);
 }
 
 export function renderWordList(state) {
@@ -132,7 +144,7 @@ export function showModeSetup(def, { ranked }) {
   showScreen('mode');
 }
 
-export function showResults(state, { achievements = [], best = false, nextLabel = 'Next', leaderboardHtml = '' }) {
+export function showResults(state, { achievements = [], best = false, nextLabel = 'Next', leaderboardHtml = '', constraint = '' }) {
   $('results-h').textContent = state.status === 'complete' ? 'Board Complete!' : 'Round Over';
   const box = $('score-breakdown');
   box.textContent = '';
@@ -153,7 +165,7 @@ export function showResults(state, { achievements = [], best = false, nextLabel 
   }
   $('results-extra').textContent =
     'Time ' + fmtTime(state.elapsedMs) + ' · Invalid selections ' + state.invalidActions +
-    (best ? ' · New best score!' : '');
+    (best ? ' · New best score!' : '') + (constraint ? ' · ' + constraint : '');
   const ach = $('achievements-earned');
   ach.textContent = '';
   for (const a of achievements) {
