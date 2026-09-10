@@ -92,6 +92,9 @@ const sampleMap = {
   wordFound: ['word-found-1', 'word-found-2', 'word-found-3'],
   complete: ['round-complete-1', 'round-complete-2'],
   uiMove: ['ui-move-1', 'ui-move-2'],
+  hint: ['hint-shimmer-1', 'hint-shimmer-2'],
+  achievement: ['achievement-1'],
+  uiBack: ['ui-back-1'],
 };
 const sampleBuffers = new Map(); // name -> AudioBuffer
 const sampleLoads = new Map();   // name -> in-flight Promise (dedupes fetches)
@@ -149,6 +152,20 @@ export const sfx = {
       setTimeout(() => blipShape(effectsBus, { freq: 1319, dur: 0.5, gain: 0.25 }), 620);
     });
   },
+  hint() {
+    playSample('hint', () => {
+      blipShape(effectsBus, { freq: 988, dur: 0.16, type: 'sine', gain: 0.16 });
+      setTimeout(() => blipShape(effectsBus, { freq: 1319, dur: 0.22, type: 'sine', gain: 0.13 }), 110);
+    });
+  },
+  achievement() {
+    playSample('achievement', () => {
+      blipShape(effectsBus, { freq: 196, dur: 0.14, type: 'triangle', gain: 0.24 });
+      setTimeout(() => blipShape(effectsBus, { freq: 784, dur: 0.28, gain: 0.26 }), 130);
+      setTimeout(() => blipShape(effectsBus, { freq: 1175, dur: 0.42, gain: 0.2 }), 300);
+    });
+  },
+  uiBack() { playSample('uiBack', () => blipShape(effectsBus, { freq: 320, dur: 0.07, type: 'triangle', gain: 0.14, slide: -80 })); },
   uiMove() { playSample('uiMove', () => blipShape(effectsBus, { freq: 880, dur: 0.03, type: 'square', gain: 0.08 })); },
 };
 

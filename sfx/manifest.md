@@ -18,3 +18,13 @@ Generated with MOSS-SoundEffect v2.0, 48 kHz mono Opus (96 kbps VBR, loudness-no
 | round-complete-2.opus | complete | Warm celebratory xylophone melody rising in steps and finishing with a shimmering bell, a puzzle solved finale |
 | ui-move-1.opus | uiMove | Very short soft wooden tick for interface cursor movement, quiet and dry |
 | ui-move-2.opus | uiMove | Tiny muted click like a small bead shifting one step along a wooden track |
+| hint-shimmer-1.opus | hint | Soft airy shimmer of light bell overtones rising gently, a hint being revealed on a quiet puzzle board, warm and unobtrusive |
+| hint-shimmer-2.opus | hint | Gentle glassy sparkle with a slow swell and short tail, a subtle clue appearing, soft mallet and bell blend |
+| achievement-1.opus | achievement | Warm wooden stamp thud followed by a bright resonant chime and a short shimmer, a small award unlocked on a paper desk |
+| ui-back-1.opus | uiBack | Short soft wooden knock with a gentle downward inflection, closing a menu panel, dry and quiet |
+| hint-shimmer-1.opus | hint | Soft airy shimmer of light bell overtones rising gently, a hint being revealed on a quiet puzzle board, warm and unobtrusive |
+| hint-shimmer-2.opus | hint | Gentle glassy sparkle with a slow swell and short tail, a subtle clue appearing, soft mallet and bell blend |
+| achievement-1.opus | achievement | Warm wooden stamp thud followed by a bright resonant chime and a short shimmer, a small award unlocked on a paper desk |
+| ui-back-1.opus | uiBack | Short soft wooden knock with a gentle downward inflection, closing a menu panel, dry and quiet |
+
+The canonical, authoritative list is `sfx/manifest.txt`.

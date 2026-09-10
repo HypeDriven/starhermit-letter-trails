@@ -38,6 +38,11 @@
     justify-content: center; gap: 14px; padding: calc(16px + var(--sat)) calc(16px + var(--sar)) calc(16px + var(--sab)) calc(16px + var(--sal));
     background: rgba(30, 22, 16, 0.55); z-index: 20; overflow-y: auto; }
   .screen.visible { display: flex; }
+  /* Title key art: assets/keyart.webp under a scrim. The scrim colour alone
+     keeps the panel readable if the image fails to load. */
+  #screen-title { background-color: rgba(30, 22, 16, 0.55);
+    background-image: linear-gradient(rgba(28, 20, 14, 0.55), rgba(28, 20, 14, 0.66)), url('./assets/keyart.webp');
+    background-size: cover; background-position: center; }
   .panel { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
     padding: 24px; max-width: 70ch; width: min(92vw, 560px); max-height: 85vh; overflow-y: auto;
     box-shadow: 0 8px 30px rgba(0,0,0,0.4); }

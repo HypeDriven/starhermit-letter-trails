@@ -1,0 +1,25 @@
+# Letter Trails — canonical SFX manifest
+# file | event id | description | usage context
+# Event ids are the keys of sampleMap / sfx in src/audio.js. Every event has a
+# procedural WebAudio fallback that plays until its sample is decoded, so the
+# game is never silent. All clips: MOSS-SoundEffect v2.0, 48 kHz mono Opus
+# (96 kbps VBR, loudness-normalised to -20 LUFS, 100 inference steps).
+
+tile-tick-1.opus | tick | Single soft wooden letter tile click, short and dry, like a game piece sliding over one grid square | Pointer-down on a tile, starting a drag trail (src/main.js pointerdown handler)
+tile-tick-2.opus | tick | Light wooden tap, slightly higher pitch, one quick click of a small letter tile on a tabletop | Second variant in the tick rotation; avoids machine-gun repetition on fast drags
+tile-tick-3.opus | tick | Brief muted wooden knock, a gentle tile-passing sound with no ring or echo | Third variant in the tick rotation
+select-confirm-1.opus | select | Soft pop of a finger lifting off a wooden letter tile, warm click confirming a choice | Keyboard line anchor set with Enter/Space (src/main.js keydown handler)
+select-confirm-2.opus | select | Short bright wooden pluck, confirming a chosen letter on a board grid | Second variant in the select rotation
+invalid-thud-1.opus | invalid | Low dull wooden thud with a soft rattle, the sound of a rejected board move | A committed selection is rejected by rules.applyCommand (not straight, not a listed word, already found)
+invalid-thud-2.opus | invalid | Short descending muted knock on a hollow wooden box, gentle negative feedback | Second variant in the invalid rotation
+word-found-1.opus | wordFound | Three ascending bright xylophone notes with warm wooden resonance, a small success jingle | A selection matches an unfound word; plays with the tile-colour commit in render.commitWord
+word-found-2.opus | wordFound | Cheerful rising marimba arpeggio of three notes ending on a soft sparkle | Second variant in the wordFound rotation
+word-found-3.opus | wordFound | Quick pleasant chime run upwards with soft mallet hits, celebratory but gentle and short | Third variant in the wordFound rotation
+round-complete-1.opus | complete | Short triumphant jingle of ascending mallet percussion ending on a sustained bright chime | Last word of the board found; fires in finishRound before the results screen
+round-complete-2.opus | complete | Warm celebratory xylophone melody rising in steps, finishing with a shimmering bell | Second variant in the complete rotation
+ui-move-1.opus | uiMove | Very short soft wooden tick for interface cursor movement, quiet and dry | Arrow-key cursor step across the grid (keyboard play)
+ui-move-2.opus | uiMove | Tiny muted click like a small bead shifting one step along a wooden track | Second variant in the uiMove rotation
+hint-shimmer-1.opus | hint | Soft airy shimmer of light bell overtones rising gently, warm and unobtrusive | Hint requested with H or the Hint button; a full word line is highlighted for 2.5 s
+hint-shimmer-2.opus | hint | Gentle glassy sparkle with a slow swell and short tail, a subtle clue appearing | Second variant in the hint rotation
+achievement-1.opus | achievement | Warm wooden stamp thud followed by a bright resonant chime and a short shimmer | One or more achievements unlock at round end, just before the results screen appears
+ui-back-1.opus | uiBack | Short soft wooden knock with a gentle downward inflection, dry and quiet | Closing help, returning to the title from results/mode screens, leaving a round

@@ -82,5 +82,29 @@
     "seconds": 1,
     "prompt": "Tiny muted click like a small bead shifting one step along a wooden track",
     "event": "uiMove"
+  },
+  {
+    "name": "hint-shimmer-1",
+    "seconds": 2,
+    "prompt": "Soft airy shimmer of light bell overtones rising gently, a hint being revealed on a quiet puzzle board, warm and unobtrusive",
+    "event": "hint"
+  },
+  {
+    "name": "hint-shimmer-2",
+    "seconds": 2,
+    "prompt": "Gentle glassy sparkle with a slow swell and short tail, a subtle clue appearing, soft mallet and bell blend",
+    "event": "hint"
+  },
+  {
+    "name": "achievement-1",
+    "seconds": 3,
+    "prompt": "Warm wooden stamp thud followed by a bright resonant chime and a short shimmer, a small award unlocked on a paper desk",
+    "event": "achievement"
+  },
+  {
+    "name": "ui-back-1",
+    "seconds": 1,
+    "prompt": "Short soft wooden knock with a gentle downward inflection, closing a menu panel, dry and quiet",
+    "event": "uiBack"
   }
 ]

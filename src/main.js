@@ -213,6 +213,7 @@ function finishRound() {
     constraint = 'Challenge ' + parts.join(', ') + '.';
   }
 
+  if (earned.length) audio.sfx.achievement();
   game.sess.transition('results', 'round-complete');
   const nextLabel = game.mode === 'journey' ? 'Next Level' : 'Play Again';
   ui.showResults(game.state, { achievements: earned, best, nextLabel, constraint });
@@ -244,6 +245,7 @@ function renderLeaderboard(scores) {
 }
 
 function leaveRound() {
+  audio.sfx.uiBack();
   cancelSelection();
   audio.stopAmbience();
   if (game.sess.phase === 'paused') game.sess.transition('active', 'leave-unpause');
@@ -367,6 +369,7 @@ document.addEventListener('keydown', (e) => {
       game.keyboardAnchor = { ...game.cursor };
       game.selection = [[game.cursor.r, game.cursor.c]];
       render.updateSelection(game.selection, 'pending');
+      audio.sfx.select();
       ui.announce('Line start set. Move to the end and press Enter to confirm.');
     } else {
       commitSelection();
@@ -383,6 +386,7 @@ function giveHint() {
   if (!legal.length) return;
   const action = legal[Math.floor(Math.random() * legal.length)];
   game.hintCells = action.cells;
+  audio.sfx.hint();
   render.updateSelection(action.cells, 'pending');
   ui.announce('Hint: the word ' + action.word + ' starts at row ' + (action.cells[0][0] + 1) +
     ', column ' + (action.cells[0][1] + 1) + '.');
@@ -494,7 +498,7 @@ ui.on('challenge', () => {
 
 ui.on('help', () => ui.showScreen('help'));
 ui.on('pause-help', () => ui.showScreen('help'));
-ui.on('help-close', () => ui.showScreen(game.sess.phase === 'paused' ? 'pause' : 'title'));
+ui.on('help-close', () => { audio.sfx.uiBack(); return ui.showScreen(game.sess.phase === 'paused' ? 'pause' : 'title'); });
 ui.on('settings', () => { ui.openSettings(game.settings, 'title'); });
 ui.on('pause-settings', () => { ui.openSettings(game.settings, 'pause'); });
 
@@ -542,6 +546,7 @@ ui.on('mode-start', () => {
 });
 
 ui.on('back-title', () => {
+  audio.sfx.uiBack();
   if (game.sess.phase === 'results' || game.sess.phase === 'progression') {
     game.sess.transition('mode-select', 'results-done');
   }
