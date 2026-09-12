@@ -31,7 +31,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/session.js` | Phase state machine, persistence, achievements, streaks, replay envelopes and `replayVerify` |
 | `src/render.js` | Three.js scene: desk, tiles, letter atlas, selection lift, marker line, picking, quality tiers |
 | `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
-| `src/platform.js` | Launch token, `/api/v1` client with retry, server-time sync, score submit, leaderboard, telemetry |
+| `src/platform.js` | Launch token (fragment, refreshed every 45 min), Bearer `/api/v1` client, profile nickname, cloud-save mirror, read-only leaderboards; dev-only server-time/scores/events |
 | `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
 | `server.js` | Static server + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` |
@@ -409,24 +409,42 @@ because the letters on the board *are* the puzzle.
 `starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`,
 `cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
 
-**Used.**
+**Used (platform launch — a `#game_token=` fragment was read).**
 
-* **Identity** — the launch token is read once from `?token=` into memory (never persisted), sent as
-  `Authorization: Bearer`, and its payload supplies the game scope. Without a token the game runs as
-  a locally stored guest profile.
-* **Server time** — `GET /api/v1/time` is the single probe every host answers; its round-trip-adjusted
-  offset drives the daily boundary. Its result also gates hosted mode: if it fails, no other route is
-  requested, so an unhosted deployment produces zero console errors.
-* **Leaderboards** — `POST /api/v1/scores` submits the replay envelope for daily and journey rounds;
-  the server re-simulates it through `src/rules.js` before accepting. `GET /api/v1/scores?board=…`
-  renders the top 10 into the results panel. Failures are soft and silent.
-* **Daily content** — `GET /api/v1/daily` publishes the day's seed, size, theme and content version.
-* **Telemetry** — `POST /api/v1/events`, six allowed event names, throttled to one per 1.5 s
-  (`round-end` and `error` exempt), queued to `localStorage` and capped at 50 entries when offline.
+* **Identity** — the launch token is read once from the `#game_token=` fragment
+  (query `?token=` remains as a local-dev fallback), then stripped via
+  `history.replaceState`; it is held in memory only (never persisted) and sent
+  as `Authorization: Bearer` on every call. The payload supplies `sub` and
+  `game_scope` (the slug, never hard-coded). Without a token the game runs as a
+  locally stored guest profile.
+* **Token refresh** — every 45 min the client POSTs the current token to
+  `/api/v1/games/{slug}/launch-token` and swaps in the re-minted `{token}`;
+  failures retry after ~60 s.
+* **Profile** — `GET /api/v1/users/{sub}/profile` supplies the displayed
+  nickname (`"Player " + id.slice(0,8)` fallback; usernames never shown);
+  it renders in the title-screen profile line with the cloud sync status.
+* **Cloud save** — one slot at `GET`/`PUT /api/v1/me/cloud-saves/{slug}`:
+  the six `lt:*` game keys zip+base64'd (stored zip, no compression). The
+  remote wins on load; local writes are mirrored back (~2 s debounce,
+  `pagehide`/`visibilitychange` flush). localStorage stays the offline cache.
+* **Leaderboards (read-only)** — `GET /api/v1/games/{slug}` gives the
+  `leaderboardId`; `GET /api/v1/leaderboards/{id}/entries` renders the top 10
+  on the results screen, userIds resolved to nicknames. Clients cannot submit
+  scores; personal bests stay local (and cloud-mirrored). With no
+  `leaderboardId`, local records only.
 
-**Not used.** Presence, matchmaking, realtime sessions, cloud saves, friends and social feeds:
-Letter Trails is single-player with a shared seed, so a daily leaderboard is the whole social
-surface. Achievements are stored locally rather than on the platform (§17).
+**Used (local dev only — own server.js, no token).** The `/api/v1/time` probe
+(round-trip-adjusted daily boundary) gates the dev routes so an unhosted build
+stays silent: `POST /api/v1/scores` (replay validated by re-simulation),
+`GET /api/v1/scores?board=…`, and `POST /api/v1/events` telemetry (throttled,
+queued to `lt:telemetry-queue`, capped at 50). None of these are requested on
+a platform launch; platform mode uses the local clock for the daily boundary.
+
+**Not used.** Presence, matchmaking, realtime sessions, friends and social
+feeds: Letter Trails is single-player with a shared seed, so a daily
+leaderboard is the whole social surface. Achievements stay local (part of the
+cloud-saved doc); `server.js` is a plain Node server, not a Jint game script,
+so there is no script-owned unlock path.
 
 ---
 
@@ -442,7 +460,8 @@ hashes across processes — asserted by `tests/rules.test.mjs` and re-verified b
 
 **Persistence.** Six `localStorage` keys, all namespaced `lt:` — `settings`, `journey`,
 `achievements`, `best`, `streak`, `guest`, plus `lt:telemetry-queue`. Every read and write is
-wrapped: with storage unavailable the session runs normally and simply forgets.
+wrapped: with storage unavailable the session runs normally and simply forgets. On a platform
+launch these keys are also mirrored to the cloud-save slot (remote wins on load, §12).
 
 **Save migration.** States carry `version` and go through `MIGRATIONS` on load; a newer-than-supported
 version is rejected loudly rather than half-read.
@@ -490,12 +509,15 @@ completion through legal actions only, and asserts `replayVerify` accepts each l
    board (journey level 1 tutorial cards).
 2. Every implemented feature is reachable in the browser: all five modes, hint, pause, settings,
    help, tutorial replay, journey level select, and the results actions.
-3. Zero console errors or warnings at both viewports, hosted and unhosted — the `/api/v1/time` gate
-   exists so an unhosted build never 404s into the console.
+3. Zero console errors or warnings at both viewports, hosted and unhosted — hosted mode is
+   token-gated, the dev-only `/api/v1/time` probe keeps an unhosted build from ever requesting a
+   missing route, and the only expected hosted-mode network miss is the documented 404 from the
+   empty cloud-save slot.
 4. No text or control is cut off at 1280×800 or 390×844, portrait or landscape: panels scroll
    internally, rails become drawers, and safe-area insets pad every edge.
-5. Features that could use platform services do: identity, server time, ranked score submission with
-   server-side replay validation, daily content, and telemetry.
+5. Features that could use platform services do: launch-token identity with nickname and token
+   refresh, cloud saves with remote-preferred load, read-only leaderboards against the script-owned
+   board; validated replay submission and telemetry run against the local dev server.
 
 ---
 
@@ -532,8 +554,8 @@ is cheaper and sharper to build in code than to ship as a mesh.
 * **Practice boards are not reproducible** — seeded from `Math.random()` by design, so a great
   practice board cannot be shared or replayed.
 * **Hints are unlimited and unpenalised**, which makes any board solvable without reading it.
-* **Achievements are device-local**; clearing site data loses them, and they do not follow the
-  platform identity.
+* **Achievements are stored locally**; on-platform they ride the cloud-save mirror once synced,
+  but site data cleared before a sync still loses them, and there is no platform entitlement.
 * **Camera is fixed.** `C` re-frames it; there is no orbit or zoom, so on a 9×9 board at a narrow
   portrait width the tiles are small (still legible at the atlas resolution, but tight).
 * **`ui.closeSettings`** is dead code — the settings panel closes through `main`'s `settings-close`

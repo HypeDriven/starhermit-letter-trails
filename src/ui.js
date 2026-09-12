@@ -119,7 +119,7 @@ function fmtTime(ms) {
 // Screens content
 // ---------------------------------------------------------------------------
 
-export function showModeSetup(def, { ranked }) {
+export function showModeSetup(def, { ranked, rankedLabel }) {
   $('mode-h').textContent = def.label || def.id;
   $('mode-desc').textContent = def.desc || '';
   const dl = $('mode-facts');
@@ -131,7 +131,7 @@ export function showModeSetup(def, { ranked }) {
     ['Par', def.par.moves + ' moves, ' + fmtTime(def.par.timeMs)],
     ['Expected duration', Math.max(1, Math.round(def.par.timeMs / 60000)) + ' min'],
     ['Players', '1'],
-    ['Ranked', ranked ? 'Yes — validated replay submitted' : 'No'],
+    ['Ranked', ranked ? (rankedLabel || 'Yes — validated replay submitted') : 'No'],
   ];
   const ch = def.mechanics && def.mechanics.challenge;
   if (ch && ch.moveLimit) facts.push(['Move limit', String(ch.moveLimit)]);

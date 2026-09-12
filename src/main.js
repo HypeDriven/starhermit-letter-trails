@@ -218,17 +218,33 @@ function finishRound() {
   const nextLabel = game.mode === 'journey' ? 'Next Level' : 'Play Again';
   ui.showResults(game.state, { achievements: earned, best, nextLabel, constraint });
 
-  // Submit validated replay (daily + journey are ranked; failures are soft).
+  // Ranked surfacing (daily + journey): on the platform the leaderboard is
+  // read-only — clients can never submit scores — so only entries are read;
+  // personal bests stay local and cloud-mirrored. Against the local dev
+  // server the validated replay is still submitted. Failures are soft.
   if (game.mode === 'daily' || game.mode === 'journey') {
-    platform.submitScore(game.envelope).then(async (res) => {
-      if (res.ok) {
-        const lb = await platform.fetchLeaderboard(game.mode === 'daily' ? 'daily' : 'global',
-          game.mode === 'daily' ? utcDay(platform.serverNow()).slice(0, 10) : null);
-        if (lb.ok && lb.data && lb.data.scores) {
-          document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data.scores);
-        }
-      }
-    });
+    showRankedResults();
+  }
+}
+
+async function showRankedResults() {
+  if (platform.hasToken()) {
+    const info = await platform.fetchGameInfo();
+    const lbId = info.ok && info.data && info.data.leaderboardId;
+    if (!lbId) return; // no platform leaderboard: local records only
+    const lb = await platform.fetchLeaderboardEntries(lbId, { pageSize: 10 });
+    if (lb.ok && lb.data.length) {
+      document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data);
+    }
+    return;
+  }
+  const res = await platform.submitScore(game.envelope);
+  if (res.ok) {
+    const lb = await platform.fetchLeaderboard(game.mode === 'daily' ? 'daily' : 'global',
+      game.mode === 'daily' ? utcDay(platform.serverNow()).slice(0, 10) : null);
+    if (lb.ok && lb.data && lb.data.scores) {
+      document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data.scores);
+    }
   }
 }
 
@@ -435,12 +451,25 @@ document.addEventListener('visibilitychange', () => {
 // UI event wiring
 // ---------------------------------------------------------------------------
 
-function showTitle() {
+const SYNC_LABELS = { synced: 'cloud synced', saving: 'saving...', error: 'sync error', offline: 'offline' };
+
+function refreshProfileLine() {
+  const name = platform.getProfileName();
+  if (name) {
+    ui.setProfileLine('Playing as ' + name + ' · ' + (SYNC_LABELS[platform.getSyncStatus()] || 'offline'));
+    return;
+  }
   const g = session.guestProfile();
   ui.setProfileLine('Playing as ' + g.name + (platform.hasToken() ? '' : ' (local guest)'));
+}
+
+function showTitle() {
+  refreshProfileLine();
   if (game.sess.phase === 'boot') game.sess.transition('title', 'boot-done');
   else ui.showScreen('title');
 }
+
+const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — read-only leaderboard' : 'Yes — validated replay submitted');
 
 ui.on('play', () => {
   // Short path to play: resume journey at the next unlocked level.
@@ -449,7 +478,7 @@ ui.on('play', () => {
   const lv = content.JOURNEY[idx === -1 ? content.JOURNEY.length - 1 : idx];
   game.pendingDef = { ...lv, label: 'Journey — Level ' + (content.JOURNEY.indexOf(lv) + 1), desc: 'Find every themed word on the board.' };
   game.pendingMode = 'journey';
-  ui.showModeSetup(game.pendingDef, { ranked: true });
+  ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-mode');
 });
 
@@ -458,7 +487,7 @@ ui.on('daily', () => {
   const def = content.dailyDefinition(day);
   game.pendingDef = { ...def, label: 'Daily Challenge — ' + day, desc: 'One shared board for everyone today. Ranked.' };
   game.pendingMode = 'daily';
-  ui.showModeSetup(game.pendingDef, { ranked: true });
+  ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-daily');
 });
 
@@ -468,7 +497,7 @@ ui.on('journey', () => {
   ui.renderJourneyGrid(content.JOURNEY, progress.completed, (lv) => {
     game.pendingDef = { ...lv, label: 'Journey — Level ' + (content.JOURNEY.indexOf(lv) + 1), desc: 'Find every themed word on the board.' };
     game.pendingMode = 'journey';
-    ui.showModeSetup(game.pendingDef, { ranked: true });
+    ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   });
   ui.showScreen('journey');
 });
@@ -625,8 +654,26 @@ function boot() {
   applySettings(false);
   window.addEventListener('resize', () => render.onResize());
   window.addEventListener('orientationchange', () => setTimeout(() => render.onResize(), 100));
-  platform.syncTime().then((ok) => { if (!ok) platform.telemetry('error', { category: 'time-sync' }); });
-  platform.flushTelemetry();
+  platform.onSyncStatus(refreshProfileLine);
+  if (platform.hasToken()) {
+    // Platform launch: restore the cloud mirror first (remote wins), then
+    // start mirroring local changes back and keep the token fresh.
+    platform.fetchProfile().then(refreshProfileLine);
+    platform.pullCloudSave().then((pulled) => {
+      if (pulled) {
+        game.settings = session.loadSettings();
+        applySettings(false);
+      }
+      platform.startCloudSync();
+      refreshProfileLine();
+    });
+    platform.startTokenRefresh();
+  } else {
+    // Local dev / offline: the own-server time probe gates the dev-only
+    // routes so an unhosted build never 404s into the console.
+    platform.syncTime().then((ok) => { if (!ok) platform.telemetry('error', { category: 'time-sync' }); });
+    platform.flushTelemetry();
+  }
   platform.telemetry('start', { screen: window.innerWidth + 'x' + window.innerHeight });
   showTitle();
   requestAnimationFrame(loop);
