@@ -296,14 +296,20 @@ export function init() {
     b.addEventListener('click', () => emit('practice-pick', b.dataset.diff));
   });
   // Drawer toggles (compact layouts).
-  $('tray-words').addEventListener('click', () => {
-    $('rail-left').classList.toggle('open');
-    $('rail-right').classList.remove('open');
-  });
-  $('tray-status').addEventListener('click', () => {
-    $('rail-right').classList.toggle('open');
-    $('rail-left').classList.remove('open');
-  });
+  const setDrawer = (side, open) => {
+    $('rail-left').classList.toggle('open', side === 'left' && open);
+    $('rail-right').classList.toggle('open', side === 'right' && open);
+    const anyOpen = $('rail-left').classList.contains('open') || $('rail-right').classList.contains('open');
+    $('drawer-scrim').hidden = !anyOpen;
+    $('tray-words').setAttribute('aria-expanded', String($('rail-left').classList.contains('open')));
+    $('tray-status').setAttribute('aria-expanded', String($('rail-right').classList.contains('open')));
+  };
+  $('tray-words').addEventListener('click', () => setDrawer('left', !$('rail-left').classList.contains('open')));
+  $('tray-status').addEventListener('click', () => setDrawer('right', !$('rail-right').classList.contains('open')));
+  // explicit close controls and tap-outside dismissal
+  $('rail-left-close').addEventListener('click', () => setDrawer('left', false));
+  $('rail-right-close').addEventListener('click', () => setDrawer('right', false));
+  $('drawer-scrim').addEventListener('click', () => setDrawer('left', false));
   // Live settings changes.
   for (const id of ['set-music', 'set-effects', 'set-ambience', 'set-quality', 'set-reduced-motion',
     'set-high-contrast', 'set-colorvision', 'set-larger-text', 'set-left-handed']) {

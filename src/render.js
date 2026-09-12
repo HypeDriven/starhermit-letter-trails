@@ -223,7 +223,21 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
 
 function frameCamera() {
   const half = (boardSpan / 2) * FRAMING.margin;
-  const dist = half / Math.tan((FRAMING.fov * Math.PI) / 360);
+  const tanHalf = Math.tan((FRAMING.fov * Math.PI) / 360);
+  const aspect = camera ? camera.aspect : 1;
+  // Fit both axes: narrow (portrait) viewports need the width to fit, and the
+  // bottom tray / top HUD take a share of the height on compact layouts.
+  let freeH = 1;
+  if (canvas && typeof document !== 'undefined') {
+    const H = canvas.clientHeight || 1;
+    const tray = document.getElementById('tray');
+    if (tray && getComputedStyle(tray).display !== 'none') freeH -= Math.min(0.3, tray.getBoundingClientRect().height / H);
+    const live = document.getElementById('live');
+    if (live) freeH -= Math.min(0.08, live.getBoundingClientRect().height / H);
+  }
+  const distV = half / (tanHalf * Math.max(0.5, freeH));
+  const distH = half / (tanHalf * aspect * 0.96);
+  const dist = Math.max(distV, distH);
   const h = dist * Math.cos(FRAMING.cameraTilt) * FRAMING.cameraHeightFactor;
   const z = dist * Math.sin(FRAMING.cameraTilt);
   camBase.set(0, h, z);
@@ -302,7 +316,9 @@ export function screenToCell(ndcX, ndcY) {
   if (!boardGroup) return null;
   _ndc.set(ndcX, ndcY);
   raycaster.setFromCamera(_ndc, camera);
-  const hits = raycaster.intersectObject(boardGroup, false);
+  // Tiles are children of the group: the group itself has no geometry, so
+  // the raycast must recurse.
+  const hits = raycaster.intersectObject(boardGroup, true);
   if (!hits.length) return null;
   const cell = hits[0].object.userData.cell;
   return { r: cell[0], c: cell[1] };

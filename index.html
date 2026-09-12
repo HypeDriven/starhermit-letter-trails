@@ -69,13 +69,21 @@
   /* Compact: rails become drawers */
   @media (max-width: 1023px) {
     #app { grid-template-columns: 1fr; grid-template-areas: "main" "tray"; }
-    .rail { position: fixed; top: 0; bottom: 0; width: min(80vw, 320px); margin: 0; z-index: 15;
+    .rail { position: fixed; top: 0; bottom: calc(64px + var(--sab)); width: min(80vw, 320px); margin: 0; z-index: 15;
       transition: transform 0.25s ease; border-radius: 0; }
     #rail-left { left: 0; transform: translateX(-105%); padding-top: calc(12px + var(--sat)); }
     #rail-right { right: 0; transform: translateX(105%); padding-top: calc(12px + var(--sat)); }
     #rail-left.open, #rail-right.open { transform: none; }
-    #tray { display: flex; }
+    /* drawers stop above the tray, which stays on top and reachable */
+    #tray { display: flex; position: relative; z-index: 20; background: var(--paper); }
+    .rail-close { display: inline-flex; }
+    #drawer-scrim { position: fixed; inset: 0; bottom: calc(64px + var(--sab)); z-index: 14; background: rgba(0,0,0,0.35); }
+    #drawer-scrim[hidden] { display: none; }
+    /* announcements get their own row above the tray */
+    body #live { bottom: calc(70px + var(--sab)); background: rgba(0,0,0,0.55); color: #fff; padding: 4px 10px; border-radius: 8px; max-width: 92vw; text-align: center; }
   }
+  .rail-close { display: none; position: absolute; top: calc(6px + var(--sat)); right: 6px; min-width: 44px; min-height: 44px;
+    align-items: center; justify-content: center; border-radius: 8px; }
   /* Portrait mobile: bottom action tray */
   @media (max-width: 1023px) and (orientation: portrait) {
     #tray button { flex: 1; max-width: 140px; }
@@ -121,11 +129,13 @@
   <!-- Play HUD -->
   <div id="hud">
     <aside id="rail-left" class="rail" aria-label="Objective and word list">
+      <button type="button" class="rail-close" id="rail-left-close" aria-label="Close word list">✕</button>
       <h2 id="objective">Find the words</h2>
       <p id="progress-text" class="muted">0 of 0</p>
       <ul id="word-list" aria-label="Words to find"></ul>
     </aside>
     <aside id="rail-right" class="rail" aria-label="Status and actions">
+      <button type="button" class="rail-close" id="rail-right-close" aria-label="Close status">✕</button>
       <h2>Status</h2>
       <div id="hud-stats" aria-live="off">
         <div>Score: <span id="hud-score">0</span></div>
@@ -138,11 +148,12 @@
         <button id="btn-camera">Reset Camera (C)</button>
       </div>
     </aside>
+    <div id="drawer-scrim" hidden></div>
     <div id="tray">
-      <button id="tray-words" aria-controls="rail-left">Words</button>
+      <button id="tray-words" aria-controls="rail-left" aria-expanded="false">Words</button>
       <button id="tray-hint">Hint</button>
       <button id="tray-pause">Pause</button>
-      <button id="tray-status" aria-controls="rail-right">Status</button>
+      <button id="tray-status" aria-controls="rail-right" aria-expanded="false">Status</button>
     </div>
   </div>
 
