@@ -5,6 +5,8 @@
 // state; closing a panel can never affect a round.
 
 import { twoDigit } from './util.js';
+import { CATEGORIES, PRESETS, presetTier } from './gfx.js';
+import * as gi18n from './gfx-i18n.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -226,20 +228,20 @@ export function openSettings(settings, returnTo) {
   $('set-music').value = settings.musicVolume;
   $('set-effects').value = settings.effectsVolume;
   $('set-ambience').value = settings.ambienceVolume;
-  $('set-quality').value = settings.quality;
   $('set-reduced-motion').checked = settings.reducedMotion;
   $('set-high-contrast').checked = settings.highContrast;
   $('set-colorvision').value = settings.colorVision;
   $('set-larger-text').checked = settings.largerText;
   $('set-left-handed').checked = settings.leftHanded;
+  selectSettingsTab('general');
   showScreen('settings');
+  emit('graphics-refresh');
 }
 
 export function readSettingsForm(settings) {
   settings.musicVolume = parseFloat($('set-music').value);
   settings.effectsVolume = parseFloat($('set-effects').value);
   settings.ambienceVolume = parseFloat($('set-ambience').value);
-  settings.quality = $('set-quality').value;
   settings.reducedMotion = $('set-reduced-motion').checked;
   settings.highContrast = $('set-high-contrast').checked;
   settings.colorVision = $('set-colorvision').value;
@@ -311,11 +313,12 @@ export function init() {
   $('rail-right-close').addEventListener('click', () => setDrawer('right', false));
   $('drawer-scrim').addEventListener('click', () => setDrawer('left', false));
   // Live settings changes.
-  for (const id of ['set-music', 'set-effects', 'set-ambience', 'set-quality', 'set-reduced-motion',
+  for (const id of ['set-music', 'set-effects', 'set-ambience', 'set-reduced-motion',
     'set-high-contrast', 'set-colorvision', 'set-larger-text', 'set-left-handed']) {
     $(id).addEventListener('change', () => emit('settings-change'));
     $(id).addEventListener('input', () => emit('settings-input'));
   }
+  initGraphicsPanel();
 }
 
 export function closeSettings() {
@@ -323,3 +326,101 @@ export function closeSettings() {
 }
 
 export function setProfileLine(text) { $('profile-line').textContent = text; }
+
+// ---------------------------------------------------------------------------
+// Settings tabs + Graphics panel
+// ---------------------------------------------------------------------------
+
+const TABS = ['general', 'graphics'];
+
+export function selectSettingsTab(name, focus = false) {
+  for (const tab of TABS) {
+    const on = tab === name;
+    const btn = $('tab-' + tab);
+    btn.setAttribute('aria-selected', String(on));
+    btn.tabIndex = on ? 0 : -1;
+    $('settings-' + tab).hidden = !on;
+    if (on && focus) btn.focus();
+  }
+  if (name === 'graphics') emit('graphics-refresh');
+}
+
+function initGraphicsPanel() {
+  gi18n.setLocale(navigator.language);
+  document.querySelectorAll('[data-i18n-gfx]').forEach((el) => { el.textContent = gi18n.t(el.dataset.i18nGfx); });
+  // Tabs: click, and arrow/Home/End keys between them.
+  for (const tab of TABS) {
+    const btn = $('tab-' + tab);
+    btn.addEventListener('click', () => selectSettingsTab(tab));
+    btn.addEventListener('keydown', (e) => {
+      const i = TABS.indexOf(tab);
+      const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
+      if (j === undefined) return;
+      e.preventDefault();
+      selectSettingsTab(TABS[(j + TABS.length) % TABS.length], true);
+    });
+  }
+  // One select per category, first option "From preset (…)".
+  const box = $('gfx-cats');
+  for (const [cat, tiers] of Object.entries(CATEGORIES)) {
+    const label = document.createElement('label');
+    label.className = 'setting';
+    const span = document.createElement('span');
+    span.textContent = gi18n.t('cat_' + cat);
+    const sel = document.createElement('select');
+    sel.id = 'gfx-' + cat;
+    sel.dataset.gfx = cat;
+    const def = document.createElement('option');
+    def.value = 'preset';
+    sel.append(def);
+    for (const tier of tiers) {
+      const o = document.createElement('option');
+      o.value = tier;
+      o.textContent = gi18n.t('tier_' + tier);
+      sel.append(o);
+    }
+    sel.addEventListener('change', () => emit('graphics-change', { [cat]: sel.value === 'preset' ? null : sel.value }));
+    label.append(span, ' ', sel);
+    box.append(label);
+  }
+  const preset = $('set-quality');
+  for (const p of ['auto', ...PRESETS]) {
+    const o = document.createElement('option');
+    o.value = p;
+    preset.append(o);
+  }
+  preset.addEventListener('change', () => emit('graphics-preset', preset.value));
+  const scale = $('gfx-scale');
+  scale.addEventListener('input', () => { $('gfx-scale-val').textContent = scale.value + '%'; });
+  scale.addEventListener('change', () => emit('graphics-change', { render_scale: Number(scale.value) / 100 }));
+  $('gfx-adaptive').addEventListener('change', () => emit('graphics-change', { adaptive: $('gfx-adaptive').checked }));
+  $('gfx-show-fps').addEventListener('change', () => emit('graphics-change', { show_fps: $('gfx-show-fps').checked }));
+  // Keep the summary (pixel size, adaptive scale) fresh while the tab is open.
+  setInterval(() => { if (currentScreen === 'settings' && !$('settings-graphics').hidden) emit('graphics-refresh'); }, 1000);
+}
+
+/** Reflect saved graphics settings and the renderer's resolved state in the panel. */
+export function refreshGraphicsPanel(saved, info) {
+  const s = saved || {};
+  const r = info.resolved;
+  const preset = $('set-quality');
+  preset.options[0].textContent = gi18n.t('auto', { tier: gi18n.t('preset_' + info.detected) });
+  for (let i = 1; i < preset.options.length; i++) preset.options[i].textContent = gi18n.t('preset_' + preset.options[i].value);
+  preset.value = PRESETS.includes(s.preset) ? s.preset : 'auto';
+  for (const cat of Object.keys(CATEGORIES)) {
+    const sel = $('gfx-' + cat);
+    sel.options[0].textContent = gi18n.t('fromPreset', { tier: gi18n.t('tier_' + presetTier(r.preset, cat)) });
+    sel.value = CATEGORIES[cat].includes(s[cat]) ? s[cat] : 'preset';
+  }
+  const pct = Math.round((Number(s.render_scale) || 1) * 100);
+  if (document.activeElement !== $('gfx-scale')) {
+    $('gfx-scale').value = String(pct);
+    $('gfx-scale-val').textContent = pct + '%';
+  }
+  $('gfx-adaptive').checked = r.adaptive;
+  $('gfx-show-fps').checked = r.showFps;
+  $('gfx-summary').textContent = info.gpu + ' · ' + info.summary;
+  $('gfx-post-note').hidden = !info.postFailed;
+}
+
+export function describeWords() { return gi18n.describeWords(); }

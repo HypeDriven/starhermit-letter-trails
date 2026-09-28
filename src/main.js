@@ -10,6 +10,7 @@ import * as render from './render.js';
 import * as audio from './audio.js';
 import * as platform from './platform.js';
 import * as ui from './ui.js';
+import * as gfx from './gfx.js';
 import { now, uid, utcDay } from './util.js';
 
 // ---------------------------------------------------------------------------
@@ -544,10 +545,7 @@ function applySettings(persist) {
   audio.setVolume('music', game.settings.musicVolume);
   audio.setVolume('effects', game.settings.effectsVolume);
   audio.setVolume('ambience', game.settings.ambienceVolume);
-  const q = game.settings.quality === 'auto'
-    ? (Math.min(window.innerWidth, window.innerHeight) < 700 ? 'low' : 'medium')
-    : game.settings.quality;
-  render.setQuality(q);
+  render.setGraphics(game.settings.graphics);
   render.setReducedMotion(game.settings.reducedMotion);
   ui.applyAccessibilityClasses(game.settings);
   if (persist) {
@@ -555,6 +553,27 @@ function applySettings(persist) {
     platform.telemetry('settings-change', { keys: 'user-adjusted' });
   }
 }
+
+// Graphics tab: presets clear overrides; every change applies live and persists.
+function refreshGraphics() {
+  ui.refreshGraphicsPanel(game.settings.graphics, render.graphicsInfo(ui.describeWords()));
+}
+function commitGraphics(next) {
+  game.settings.graphics = next;
+  render.setGraphics(next);
+  session.saveSettings(game.settings);
+  platform.telemetry('settings-change', { keys: 'graphics' });
+  refreshGraphics();
+}
+ui.on('graphics-preset', (preset) => commitGraphics(gfx.choosePreset(game.settings.graphics, preset)));
+ui.on('graphics-change', (patch) => {
+  const next = { ...game.settings.graphics };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null) delete next[k]; else next[k] = v;
+  }
+  commitGraphics(next);
+});
+ui.on('graphics-refresh', refreshGraphics);
 
 ui.on('settings-close', () => {
   ui.readSettingsForm(game.settings);
@@ -650,7 +669,12 @@ function loop(t) {
 function boot() {
   platform.parseLaunchToken();
   ui.init();
-  render.init(canvas, { reducedMotion: game.settings.reducedMotion });
+  render.init(canvas, {
+    reducedMotion: game.settings.reducedMotion,
+    graphics: game.settings.graphics,
+    // Touch-first devices never auto-select above Balanced.
+    mobile: matchMedia('(hover: none) and (pointer: coarse)').matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent),
+  });
   applySettings(false);
   window.addEventListener('resize', () => render.onResize());
   window.addEventListener('orientationchange', () => setTimeout(() => render.onResize(), 100));

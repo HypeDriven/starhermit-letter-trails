@@ -29,19 +29,23 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/rules.js` | Pure deterministic rules engine: board generation, legality, commands, scoring, hashing, save migration |
 | `src/content.js` | Themes, six word banks, 40 journey levels, daily/practice/challenge definitions, tutorial lessons, offline validator |
 | `src/session.js` | Phase state machine, persistence, achievements, streaks, replay envelopes and `replayVerify` |
-| `src/render.js` | Three.js scene: desk, tiles, letter atlas, selection lift, marker line, picking, quality tiers |
+| `src/render.js` | Three.js scene: desk, paper sheet, tiles, letter atlas, selection lift, trail ribbon, particles, picking, graphics settings and the post-processing chain |
+| `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, GPU detection, `resolve`, `presetTier`, `choosePreset`, `describe` |
+| `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, picked from `navigator.language` |
 | `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
 | `src/platform.js` | Launch token (fragment, refreshed every 45 min), Bearer `/api/v1` client, profile nickname, cloud-save mirror, read-only leaderboards; dev-only server-time/scores/events |
-| `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form |
+| `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form with General/Graphics tabs |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
 | `server.js` | Static server + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` |
 | `tests/rules.test.mjs` | 26 `node --test` cases over rules, content and determinism |
+| `tests/gfx.test.mjs` | 8 `node --test` cases over the graphics model and its locale table |
 | `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile |
 | `tests/smoke.mjs` | Headless full-board playthrough with replay verification, prints state hashes |
 | `sfx/` | 18 Opus one-shots plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` |
 | `assets/keyart.webp` | Title-screen key art |
 | `coverart.png` | 1200×675 store/launcher cover |
-| `vendor/three.module.min.js`, `vendor/three.core.min.js` | Three.js r185, imported through the import map |
+| `vendor/three.module.min.js`, `vendor/three.core.min.js` | Three.js r185 (0.185.1), imported through the import map |
+| `vendor/addons/` | Same-revision three.js addons (`three/addons/`): EffectComposer, RenderPass, ShaderPass, OutputPass, GTAOPass, UnrealBloomPass, SMAAPass, FXAAShader, RoomEnvironment, RoundedBoxGeometry and their shader/math dependencies |
 
 ---
 
@@ -302,15 +306,15 @@ found / marker:
 | Night Ink | `#17181d` | `#2f3340` | `#d9a441` | `#6fae7f` |
 
 **Shape language.** Rounded rectangles everywhere: 8 px buttons, 12 px panels with a 3 px ink
-border, tiles as 0.86 × 0.18 × 0.86 boxes on a 1.0 pitch. Decorative pencil cylinders are scattered
+border, tiles as 0.86 × 0.18 × 0.86 boxes (rounded at detailed quality) on a 1.0 pitch, resting on a paper sheet. Decorative pencil cylinders are scattered
 deterministically from the board seed outside the play area and are never raycast.
 
 **Typography.** Georgia / Times New Roman serif for the whole shell; tile letters are drawn once
-into a 1024 × 512 canvas atlas at `bold 84px Georgia` and sampled per tile with UV offsets, so 81
+into a 1024 × 512 canvas atlas at `bold 84px Georgia` (2048 × 1024 at `bold 169px` with detail on) and sampled per tile with UV offsets, so 81
 tiles cost one texture. Word-list entries are bold with `0.12em` letter-spacing; found entries get
 strikethrough, 55 % opacity and a ✓.
 
-**Motion.** Tile lift eases with `1 − e^(−12·dt)`; the marker line is redrawn, never tweened;
+**Motion.** Tile lift eases with `1 − e^(−12·dt)`; the selection ribbon is redrawn, never tweened;
 drawers slide in 0.25 s. Reduced motion sets that factor to 1, so lifts snap instantly — state is
 always readable without animation, and no information is carried by motion alone.
 
@@ -321,9 +325,41 @@ gradients, no shadows besides the panel drop shadow — so the lit tiles are the
 tiles, a red thread trail), and a matching 16:9 cover. Both ship (§15). No in-game sprites or 3D
 props are needed beyond the procedurally built desk.
 
-**Lighting.** Directional key `#fff2dd` at 2.4 intensity from above-right with a 1024² shadow map,
-plus a `#f8f4ea`/`#40342a` hemisphere fill at 0.85. ACES filmic tone mapping, sRGB output, and fog
-in the desk colour from 2.2× to 5× board span.
+**Lighting.** Directional key `#fff2dd` at 2.1 intensity from above-right, its shadow frustum fitted
+to the board and pencils, plus a `#f8f4ea`/`#40342a` hemisphere fill (0.85, or 0.5 when reflections
+add image-based light). ACES filmic tone mapping and sRGB output. Fog in a darkened desk colour
+starts about one board span behind the board, measured from the camera, so tiles never wash out at
+any aspect ratio.
+
+**Graphics.** The tiles rest on a paper sheet laid on a desk in the theme's desk colour; the
+background is the same colour, darkened. With **detail** on, tiles are rounded boxes with a clear-coated
+physical material, the letter atlas is drawn at 256 px per glyph with paper grain, a soft edge
+falloff and a letterpress highlight under each glyph (ink colour unchanged), the desk gets a seamless
+procedural wood grain, the paper a fibre texture, and pencils gain a sharpened wood tip and lead.
+**Reflections** add a PMREM-filtered `RoomEnvironment` as each lit material's `envMap`, with
+per-material strength. The selection preview is a soft glowing ribbon on the paper under the
+selected line, showing in the gaps between tiles. **Particles** add dust motes drifting over the board
+and a sparkle burst from the tiles of each found word; both stop under reduced motion (the setting or
+`prefers-reduced-motion`). Post-processing (EffectComposer, only built when an effect needs it):
+RenderPass → GTAO ambient occlusion → UnrealBloom (threshold 1.0, so only the HDR trail, sparkles
+and bright highlights bloom) → OutputPass → colour grade (gentle S-curve, +7 % saturation, warm
+highlights / cool shadows, vignette) → SMAA or FXAA; MSAA uses the canvas, or a 4× multisampled
+target when the composer runs. The Settings panel has **General** and **Graphics** tabs. Graphics
+offers Quality (Auto, chosen from the WebGL unmasked renderer string: SwiftShader/llvmpipe and other
+software renderers get Low, discrete GPUs and Apple M get High, others Balanced, and touch devices are
+capped at Balanced; Low; Balanced; High; Ultra), a render scale of 50–200 %, one select per effect
+(shadows off/1024²/2048²/4096², ambient occlusion off/on/high, bloom, colour grade, anti-aliasing
+FXAA/SMAA/MSAA, reflections, surface detail plain/detailed, particles off/low/high), each defaulting
+to "From preset (…)", adaptive resolution (averages ~90 frames; above 26 ms steps the scale down by
+0.1 to 0.6, below 14 ms back up by 0.05), a frame-rate readout (top centre, never over controls) and
+a summary line "GPU · cost · W×H px". Picking a preset clears the overrides. Pixel ratio is
+min(devicePixelRatio, preset cap: Low 1, Balanced 1.5, High/Ultra 2) × preset scale (Ultra 1.25) ×
+render scale × adaptive scale. Changes apply live — shadow maps, materials, the post chain and, for
+detail or particle changes, a rebuild of the current board that keeps found words — and persist in
+`lt:settings.graphics` (legacy `quality` values migrate to a preset). If the post chain cannot be
+built or throws, the board renders without it and the Graphics tab says so. The current preset is
+exposed as `data-gfx-preset` on `<body>` and the canvas. Low draws exactly the plain scene with no
+composer, as cheap as the game was before the upgrade.
 
 ---
 
@@ -373,6 +409,9 @@ The product requirement is en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-
 dynamic copy in `src/ui.js` (HUD labels, results rows, mode facts), announcements and error
 explanations in `src/main.js` (`explainReason`), and lesson text in `src/content.js` (`LESSONS`).
 `<html lang="en">` is fixed. There is no string table and no language selector — see §17 and §18.
+The exception is the Settings panel's tab names and the whole Graphics tab, which come from
+`src/gfx-i18n.js` in all nine locales, chosen from `navigator.language` (base-language fallback:
+es → es-419, fr → fr-FR, pt → pt-BR; unknown → en-US).
 
 **Constraints the current UI already respects**, so a string table can land without relayout:
 panels wrap and scroll rather than clipping, buttons size to content with a 44 px floor, and the
@@ -397,7 +436,8 @@ because the letters on the board *are* the puzzle.
 * **Contrast.** Ink on paper is roughly 13:1; the High contrast setting takes it to black on white
   with a blue accent. Found words are marked by strikethrough and ✓ as well as by colour, and two
   colour-vision palettes are exposed as a setting (§17).
-* **Reduced motion.** A setting, applied to tile easing and honoured by the render loop.
+* **Reduced motion.** A setting (or `prefers-reduced-motion`), applied to tile easing; it also stops
+  dust motes and word sparkles.
 * **Larger text.** 120 % body scale, applied as a body class.
 * **Target sizes.** Every button is at least 44 × 44 px, including range inputs and selects.
 * **Left-handed** mode is a stored setting and a body class (§17).
@@ -467,8 +507,10 @@ launch these keys are also mirrored to the cloud-save slot (remote wins on load,
 version is rejected loudly rather than half-read.
 
 **Performance budgets.** One draw-call-cheap scene: `size²` tile meshes sharing one geometry and one
-edge material, one canvas atlas texture, three lights, one line. Quality tiers cap pixel ratio at
-1 / 1.5 / 2 and toggle shadows; `auto` picks `low` when the smaller viewport axis is under 700 px.
+edge material, one canvas atlas texture, two lights, one ribbon, and at most two point clouds. Graphics
+presets cap pixel ratio at 1 / 1.5 / 2 / 2 and choose shadows and post effects (§8); Auto picks from the
+GPU, and adaptive resolution protects the frame rate. Board rebuilds dispose the previous desk, paper,
+pencils and particles as well as the tiles, so nothing accumulates across rounds.
 The render loop allocates nothing per frame (scratch vectors are module-level) and clamps `dt` to
 0.1 s. Board rebuilds fully dispose geometries, materials and textures. Rendering is skipped
 entirely while the tab is hidden. The clock is folded into the command log in ~5 s chunks, so a
@@ -478,15 +520,21 @@ five-minute round adds about 60 commands to an envelope, not thousands.
 stand-in `/api/v1` routes, launches system Chrome through `playwright-core`, and clicks the actual
 buttons: settings toggle, help, Play, mode start, tutorial next/skip, then solves the board with
 real arrow/Enter key presses, then exercises hint, pause, pause-settings, resume and leave on a
-second round. It reads word coordinates by importing `src/rules.js` inside the page purely to aim
+second round. The Graphics tab is driven the same way: Auto must resolve to Low under SwiftShader,
+Low then High are selected, the shadows override and frame-rate toggle are set, and all of it must
+survive a page reload; picking a preset must clear the override, and Ultra runs in-game before
+returning to Auto. It reads word coordinates by importing `src/rules.js` inside the page purely to aim
 key presses; no game function is called to make progress. Any `pageerror` or non-GPU-noise console
-error fails the run.
+error or warning fails the run.
 
 ---
 
 ## 14. Testing and acceptance criteria
 
-**`npm test`** (`node --test`, 26 cases in `tests/rules.test.mjs`) verifies: deterministic generation
+**`npm test`** (`node --test`, 34 cases) runs `tests/gfx.test.mjs` — GPU detection including the
+mobile cap, `resolve` with presets, overrides and render-scale clamping, preset choice clearing
+overrides, the cost summary, and complete Graphics strings in all nine locales — and
+`tests/rules.test.mjs`, which verifies: deterministic generation
 that places every word; `legalActions` yields exactly the unfound words; every rejection reason
 (non-straight, out-of-bounds, too-few, bad cells, no match, already found, not active, bad tick, bad
 streak); reversed words match; scoring components and the total; the terminal transition and its
@@ -498,7 +546,7 @@ UTC date; the 03:00 UTC rollover independent of local timezone; and a malformed-
 must neither throw nor hang.
 
 **`npm run test:e2e`** must print `E2E OK` for both the 1280×800 desktop pass and the 390×844 touch
-mobile pass, with zero console or page errors.
+mobile pass, with zero console errors, warnings or page errors.
 
 **`node tests/smoke.mjs`** plays journey 1, journey 40, today's daily and the tight-grid challenge to
 completion through legal actions only, and asserts `replayVerify` accepts each log.
@@ -538,7 +586,7 @@ completion through legal actions only, and asserts `replayVerify` accepts each l
 | `sfx/achievement-1.opus` | `achievement` | MOSS-SoundEffect v2.0, 100 steps | generated this pass, wired |
 | `sfx/ui-back-1.opus` | `uiBack` | MOSS-SoundEffect v2.0, 100 steps | generated this pass, wired |
 | Letter atlas | 26 glyphs on one canvas texture | Generated at runtime in `render.buildLetterAtlas` | procedural, no file |
-| Desk, tiles, pencils | The entire 3D scene | Built procedurally in `render.buildBoard` | procedural, no model files |
+| Desk, paper, tiles, pencils | The entire 3D scene, wood/paper/grain textures, particle sprites | Built procedurally in `render.buildBoard` (canvas textures) | procedural, no model files |
 
 No 3D model files and no character animation are called for: the board is the only geometry and it
 is cheaper and sharper to build in code than to ship as a mesh.
@@ -547,7 +595,8 @@ is cheaper and sharper to build in code than to ship as a mesh.
 
 ## 16. Known limitations
 
-* **English only.** All copy is inline English; no string table, no language selector (§10).
+* **English only.** All copy is inline English apart from the Graphics tab; no string table, no
+  language selector (§10).
 * **`colorVision`, `leftHanded`, `holdToConfirm` and `haptics`** persist and (for left-handed) apply
   a body class, but nothing currently reads them for layout, palette or vibration.
 * **No music bus content.** The music slider affects a bus with no source on it.

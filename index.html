@@ -96,6 +96,7 @@
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+  #live:empty { visibility: hidden; }
   #live { position: fixed; bottom: calc(4px + var(--sab)); left: 50%; transform: translateX(-50%);
     z-index: 30; pointer-events: none; }
 
@@ -107,10 +108,34 @@
   .rule-card { border: 2px solid var(--ink); border-radius: 8px; padding: 12px; margin: 8px 0; background: var(--tile); }
   label.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; min-height: 44px; }
   input[type=range] { min-width: 140px; min-height: 44px; }
-  select { font: inherit; min-height: 44px; }
+  select { font: inherit; min-height: 44px; max-width: 58%; }
+  /* Settings tabs (General / Graphics) */
+  .tabs { display: flex; gap: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+  .tabs [role=tab] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; background: var(--tile); }
+  .tabs [role=tab][aria-selected=true] { background: var(--accent); color: #fff; font-weight: bold; }
+  .range-wrap { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .range-wrap input[type=range] { min-width: 110px; width: 34vw; max-width: 200px; }
+  .range-wrap output { min-width: 3.5em; text-align: right; }
+  #gfx-summary { overflow-wrap: anywhere; }
+  #settings-graphics select { max-width: 60%; }
+  /* Phones: each graphics control drops under its label at full width. */
+  @media (max-width: 600px) {
+    #settings-graphics label.setting:has(select), #settings-graphics label.setting:has(.range-wrap) { flex-wrap: wrap; gap: 4px 12px; }
+    #settings-graphics select { max-width: none; flex: 1 1 100%; }
+    #settings-graphics .range-wrap { flex: 1 1 100%; }
+    #settings-graphics .range-wrap input[type=range] { flex: 1; width: auto; max-width: none; min-width: 0; }
+  }
+  #gfx-post-note { color: var(--accent); font-weight: bold; }
+  #fps-meter { position: fixed; top: calc(4px + var(--sat)); left: 50%; transform: translateX(-50%); z-index: 12;
+    pointer-events: none; font: 12px/1.4 ui-monospace, monospace; color: #fff; background: rgba(0,0,0,0.5);
+    padding: 2px 8px; border-radius: 6px; }
+  #fps-meter[hidden] { display: none; }
 </style>
 <script type="importmap">
-  { "imports": { "three": "./vendor/three.module.min.js?v=production-qa-1" } }
+  { "imports": {
+    "three": "./vendor/three.module.min.js?v=production-qa-1",
+    "three/addons/": "./vendor/addons/"
+  } }
 </script>
 </head>
 <body>
@@ -239,23 +264,35 @@
   <section id="screen-settings" class="screen" aria-labelledby="settings-h" role="dialog" aria-modal="true">
     <div class="panel">
       <h2 id="settings-h">Settings</h2>
-      <label class="setting">Music volume <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
-      <label class="setting">Effects volume <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
-      <label class="setting">Ambience volume <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
-      <label class="setting">Quality tier
-        <select id="set-quality">
-          <option value="auto">Auto</option><option value="low">Low</option>
-          <option value="medium">Medium</option><option value="high">High</option>
-        </select></label>
-      <label class="setting">Reduced motion <input id="set-reduced-motion" type="checkbox"></label>
-      <label class="setting">High contrast <input id="set-high-contrast" type="checkbox"></label>
-      <label class="setting">Color-vision palette
-        <select id="set-colorvision">
-          <option value="default">Default</option><option value="deuteranopia">Deuteranopia-safe</option>
-          <option value="tritanopia">Tritanopia-safe</option>
-        </select></label>
-      <label class="setting">Larger text <input id="set-larger-text" type="checkbox"></label>
-      <label class="setting">Left-handed controls <input id="set-left-handed" type="checkbox"></label>
+      <div class="tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" role="tab" id="tab-general" data-tab="general" aria-selected="true" aria-controls="settings-general" data-i18n-gfx="general">General</button>
+        <button type="button" role="tab" id="tab-graphics" data-tab="graphics" aria-selected="false" aria-controls="settings-graphics" tabindex="-1" data-i18n-gfx="graphics">Graphics</button>
+      </div>
+      <div id="settings-general" role="tabpanel" aria-labelledby="tab-general">
+        <label class="setting">Music volume <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting">Effects volume <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting">Ambience volume <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting">Reduced motion <input id="set-reduced-motion" type="checkbox"></label>
+        <label class="setting">High contrast <input id="set-high-contrast" type="checkbox"></label>
+        <label class="setting">Color-vision palette
+          <select id="set-colorvision">
+            <option value="default">Default</option><option value="deuteranopia">Deuteranopia-safe</option>
+            <option value="tritanopia">Tritanopia-safe</option>
+          </select></label>
+        <label class="setting">Larger text <input id="set-larger-text" type="checkbox"></label>
+        <label class="setting">Left-handed controls <input id="set-left-handed" type="checkbox"></label>
+      </div>
+      <div id="settings-graphics" role="tabpanel" aria-labelledby="tab-graphics" hidden>
+        <label class="setting"><span data-i18n-gfx="quality">Quality</span>
+          <select id="set-quality" data-gfx="preset"></select></label>
+        <label class="setting"><span data-i18n-gfx="renderScale">Render scale</span>
+          <span class="range-wrap"><input id="gfx-scale" data-gfx="render_scale" type="range" min="50" max="200" step="5" value="100"><output id="gfx-scale-val" for="gfx-scale">100%</output></span></label>
+        <div id="gfx-cats"></div>
+        <label class="setting"><span data-i18n-gfx="adaptive">Adaptive resolution</span> <input id="gfx-adaptive" data-gfx="adaptive" type="checkbox"></label>
+        <label class="setting"><span data-i18n-gfx="showFps">Show frame rate</span> <input id="gfx-show-fps" data-gfx="show_fps" type="checkbox"></label>
+        <p id="gfx-summary" class="muted" aria-live="polite"></p>
+        <p id="gfx-post-note" hidden data-i18n-gfx="postUnavailable"></p>
+      </div>
       <div class="row">
         <button id="btn-replay-tutorial">Replay Tutorial</button>
         <button id="btn-settings-close" class="primary">Done</button>

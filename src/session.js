@@ -45,10 +45,19 @@ export const DEFAULT_SETTINGS = {
   quality: 'auto', reducedMotion: false, highContrast: false,
   colorVision: 'default', largerText: false, leftHanded: false,
   holdToConfirm: false, haptics: true, tutorialDone: false,
+  // Graphics (src/gfx.js): { preset: 'auto'|tier, render_scale, adaptive, show_fps, <category>: tier }.
+  graphics: null,
 };
 
+// Legacy `quality` tiers map onto graphics presets the first time settings load.
+const LEGACY_QUALITY = { low: 'low', medium: 'balanced', high: 'high' };
+
 export function loadSettings() {
-  return { ...DEFAULT_SETTINGS, ...load(LS.settings, {}) };
+  const s = { ...DEFAULT_SETTINGS, ...load(LS.settings, {}) };
+  if (!s.graphics || typeof s.graphics !== 'object') {
+    s.graphics = { preset: LEGACY_QUALITY[s.quality] || 'auto' };
+  }
+  return s;
 }
 
 export function saveSettings(settings) {

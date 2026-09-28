@@ -2,7 +2,8 @@
  * Letter Trails — end-to-end playthrough test (dev QA, not shipped).
  *
  * Drives the real visible UI in headless Chrome (playwright-core + system
- * Chrome): title → settings open/close → Play (Journey level 1) → tutorial →
+ * Chrome): title → settings open/close → Graphics tab (presets, override,
+ * persistence across reload) → Play (Journey level 1) → tutorial →
  * solves the whole board with keyboard line selection (arrows + Enter, the
  * same input path a keyboard player uses) → results screen → second round for
  * pause/resume, pause-settings, hint, and leave-round. Word coordinates are
@@ -14,7 +15,7 @@
  * events) so the game runs in its full "hosted" mode without a real backend.
  *
  * Two passes: desktop 1280x800 and mobile 390x844 (touch). Both must pass.
- * Fails loudly on any non-benign pageerror / console error.
+ * Fails loudly on any non-benign pageerror / console error or warning.
  *
  * Run: npm run test:e2e
  */
@@ -104,7 +105,7 @@ async function runPass(browser, label, contextOptions) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !browserNoise.test(m.text())) errors.push(`console: ${m.text()}`);
+    if ((m.type() === 'error' || m.type() === 'warning') && !browserNoise.test(m.text())) errors.push(`console ${m.type()}: ${m.text()}`);
   });
 
   const step = async (name, fn) => {
@@ -131,6 +132,47 @@ async function runPass(browser, label, contextOptions) {
       await page.waitForSelector('#screen-title.visible');
       const applied = await page.evaluate(() => document.body.classList.contains('high-contrast'));
       if (!applied) throw new Error('high-contrast class not applied after settings change');
+    });
+
+    await step('settings → Graphics: presets, override, persistence across reload', async () => {
+      const preset = () => page.evaluate(() => document.body.dataset.gfxPreset);
+      await page.click('#btn-settings');
+      await page.waitForSelector('#screen-settings.visible');
+      await page.click('#tab-graphics');
+      await page.waitForSelector('#settings-graphics:not([hidden])');
+      // Headless Chrome renders with SwiftShader, so Auto must resolve to Low.
+      if (await preset() !== 'low') throw new Error('Auto should resolve to low on a software GPU, got ' + await preset());
+      if (!/detected: Low/.test(await page.textContent('#set-quality option[value=auto]'))) throw new Error('Auto option does not name the detected tier');
+      await page.selectOption('#set-quality', 'low');
+      await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low');
+      await page.selectOption('#set-quality', 'high');
+      await page.waitForFunction(() => document.body.dataset.gfxPreset === 'high');
+      if (!/2048² shadows/.test(await page.textContent('#gfx-summary'))) throw new Error('High preset summary missing shadows: ' + await page.textContent('#gfx-summary'));
+      if (!/\(Medium\)/.test(await page.textContent('#gfx-shadows option[value=preset]'))) throw new Error('shadows "From preset" label wrong');
+      await page.selectOption('#gfx-shadows', 'off');
+      await page.waitForFunction(() => /no shadows/.test(document.getElementById('gfx-summary').textContent));
+      await page.check('#gfx-show-fps');
+      await page.waitForSelector('#fps-meter:not([hidden])', { state: 'attached' });
+      await page.screenshot({ path: SHOT('graphics', label) });
+      await page.click('#btn-settings-close');
+      await page.waitForSelector('#screen-title.visible');
+
+      await page.reload({ waitUntil: 'load' });
+      await page.waitForSelector('#screen-title.visible', { timeout: 15000 });
+      if (await preset() !== 'high') throw new Error('preset did not survive reload: ' + await preset());
+      await page.click('#btn-settings');
+      await page.click('#tab-graphics');
+      if (await page.inputValue('#set-quality') !== 'high') throw new Error('quality select not restored');
+      if (await page.inputValue('#gfx-shadows') !== 'off') throw new Error('shadows override not restored');
+      if (!(await page.isChecked('#gfx-show-fps'))) throw new Error('show-fps not restored');
+      // Choosing a preset clears overrides.
+      await page.selectOption('#set-quality', 'auto');
+      await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low');
+      if (await page.inputValue('#gfx-shadows') !== 'preset') throw new Error('preset change did not clear overrides');
+      await page.uncheck('#gfx-show-fps');
+      await page.click('#tab-general');
+      await page.click('#btn-settings-close');
+      await page.waitForSelector('#screen-title.visible');
     });
 
     await step('help screen open + close', async () => {
@@ -222,9 +264,24 @@ async function runPass(browser, label, contextOptions) {
 
       await page.click('#btn-pause-settings');
       await page.waitForSelector('#screen-settings.visible');
+      // Ultra in-game: the full post chain must run without console output.
+      await page.click('#tab-graphics');
+      await page.selectOption('#set-quality', 'ultra');
+      await page.waitForFunction(() => document.body.dataset.gfxPreset === 'ultra');
       await page.click('#btn-settings-close');
       await page.waitForSelector('#screen-pause.visible');
 
+      await page.click('#btn-resume');
+      await page.waitForFunction(HUD_ACTIVE, null, { timeout: 5000 });
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: SHOT('ultra', label) });
+      await page.click(label === 'mobile' ? '#tray-pause' : '#btn-pause');
+      await page.waitForSelector('#screen-pause.visible');
+      await page.click('#btn-pause-settings');
+      await page.click('#tab-graphics');
+      await page.selectOption('#set-quality', 'auto');
+      await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low');
+      await page.click('#btn-settings-close');
       await page.click('#btn-resume');
       await page.waitForFunction(HUD_ACTIVE, null, { timeout: 5000 });
 
@@ -249,7 +306,7 @@ let browser = null;
 try {
   browser = await chromium.launch({
     executablePath: '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
+    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
   await runPass(browser, 'desktop', { viewport: { width: 1280, height: 800 } });
   await runPass(browser, 'mobile', { viewport: { width: 390, height: 844 }, hasTouch: true });
