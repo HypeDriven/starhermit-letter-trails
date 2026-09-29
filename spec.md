@@ -625,3 +625,7 @@ is cheaper and sharper to build in code than to ship as a mesh.
    granted an achievements scope.
 6. **Music bed** — a low, sparse room-tone melody for the music bus, to be authored once it does not
    compete with the tile ticks.
+
+## Browser interference
+
+`browser-guard.js` (loaded from `index.html`) suppresses browser UI that gets in the way of play: the right-click context menu, the iOS long-press callout, copy / cut / paste, and page text selection. Text fields (inputs, textareas, selects, contenteditable) keep normal selection, context menu and clipboard behaviour.
