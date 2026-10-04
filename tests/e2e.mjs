@@ -11,8 +11,8 @@
  * synchronization only; every action goes through real UI events.
  *
  * Self-contained: serves the repo over an embedded static server on an
- * ephemeral port, with minimal stand-ins for the /api/v1 routes (time, scores,
- * events) so the game runs in its full "hosted" mode without a real backend.
+ * ephemeral port (any /api route 404s). Without a launch token the game runs
+ * standalone and must make zero same-origin /api or /ws requests.
  *
  * Two passes: desktop 1280x800 and mobile 390x844 (touch). Both must pass.
  * Fails loudly on any non-benign pageerror / console error or warning.
@@ -57,15 +57,6 @@ function startServer() {
     try {
       const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
       if (urlPath.startsWith('/api/')) {
-        // Minimal hosted-mode stand-ins so no request 404s into the console.
-        const send = (obj) => {
-          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify(obj));
-        };
-        if (urlPath === '/api/v1/time') return send({ now: Date.now() });
-        if (urlPath === '/api/v1/scores' && req.method === 'GET') return send({ board: 'global', date: null, scores: [] });
-        if (urlPath === '/api/v1/scores' && req.method === 'POST') return req.resume() && req.on('end', () => send({ ok: true, id: 'e2e', score: 0 }));
-        if (urlPath === '/api/v1/events' && req.method === 'POST') return req.resume() && req.on('end', () => send({ ok: true }));
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end('{"error":"unknown-api-route"}');
         return;
@@ -103,6 +94,9 @@ async function runPass(browser, label, contextOptions) {
   const errors = [];
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
+  // Standalone (no launch token) must not touch any own-server route.
+  const ownServer = [];
+  page.on('request', (r) => { const u = new URL(r.url()); if (/^https?:$/.test(u.protocol) && /^\/(api|ws)(\/|$)/.test(u.pathname)) ownServer.push(r.method() + ' ' + u.pathname); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !browserNoise.test(m.text())) errors.push(`console ${m.type()}: ${m.text()}`);
@@ -289,6 +283,10 @@ async function runPass(browser, label, contextOptions) {
       await page.waitForSelector('#screen-pause.visible');
       await page.click('#btn-leave');
       await page.waitForSelector('#screen-title.visible');
+    });
+
+    await step('standalone made zero /api or /ws requests', async () => {
+      if (ownServer.length) throw new Error('standalone requested ' + ownServer.join(', '));
     });
 
     await step('no page errors or console errors', async () => {

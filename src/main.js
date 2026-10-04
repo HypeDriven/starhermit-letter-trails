@@ -12,6 +12,9 @@ import * as platform from './platform.js';
 import * as ui from './ui.js';
 import * as gfx from './gfx.js';
 import { now, uid, utcDay } from './util.js';
+import { shStrings } from './sh-strings.js';
+
+const shT = shStrings(navigator.languages || [navigator.language]);
 
 // ---------------------------------------------------------------------------
 // Capability detection
@@ -178,7 +181,7 @@ function finishRound() {
   // Daily streak claim is part of the replayable command log.
   let streakDays = 0;
   if (game.mode === 'daily') {
-    const s = session.recordDailyCompletion(utcDay(platform.serverNow()).slice(0, 10));
+    const s = session.recordDailyCompletion(utcDay(Date.now()).slice(0, 10));
     streakDays = s.days;
     issueCommand({ type: 'claim-streak', days: streakDays });
   }
@@ -196,7 +199,6 @@ function finishRound() {
 
   if (game.mode === 'journey') session.markJourneyLevelCompleted(game.def.id);
   const best = session.recordBestScore(game.def.id, game.state.score.total);
-  platform.telemetry('round-end', { mode: game.mode, score: game.state.score.total, invalid: game.state.invalidActions });
 
   // Evaluate challenge constraints (move limit / time target) for the results.
   let constraint = '';
@@ -221,31 +223,17 @@ function finishRound() {
 
   // Ranked surfacing (daily + journey): on the platform the leaderboard is
   // read-only — clients can never submit scores — so only entries are read;
-  // personal bests stay local and cloud-mirrored. Against the local dev
-  // server the validated replay is still submitted. Failures are soft.
-  if (game.mode === 'daily' || game.mode === 'journey') {
+  // personal bests stay local and cloud-mirrored. Standalone: local only.
+  if ((game.mode === 'daily' || game.mode === 'journey') && platform.hasToken()) {
     showRankedResults();
   }
 }
 
 async function showRankedResults() {
-  if (platform.hasToken()) {
-    const info = await platform.fetchGameInfo();
-    const lbId = info.ok && info.data && info.data.leaderboardId;
-    if (!lbId) return; // no platform leaderboard: local records only
-    const lb = await platform.fetchLeaderboardEntries(lbId, { pageSize: 10 });
-    if (lb.ok && lb.data.length) {
-      document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data);
-    }
-    return;
-  }
-  const res = await platform.submitScore(game.envelope);
-  if (res.ok) {
-    const lb = await platform.fetchLeaderboard(game.mode === 'daily' ? 'daily' : 'global',
-      game.mode === 'daily' ? utcDay(platform.serverNow()).slice(0, 10) : null);
-    if (lb.ok && lb.data && lb.data.scores) {
-      document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data.scores);
-    }
+  // No platform board → local records only.
+  const lb = await platform.fetchPlatformLeaderboard({ pageSize: 10 });
+  if (lb.ok && lb.data.length) {
+    document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data);
   }
 }
 
@@ -346,12 +334,38 @@ canvas.addEventListener('lostpointercapture', (e) => {
 // Input — keyboard
 // ---------------------------------------------------------------------------
 
+// Default KeyboardEvent.code bindings — mirror the control.* lines in
+// starhermit.txt; the player's StarHermit overrides replace them at boot.
+const DEFAULT_BINDINGS = {
+  up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],
+  select: ['Enter', 'Space'], back: ['Escape'], hint: ['KeyH'], camera: ['KeyC'],
+};
+let bindings = DEFAULT_BINDINGS;
+let codeToAction = new Map();
+function keyLabel(code) {
+  const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' };
+  if (named[code]) return named[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  return code || '—';
+}
+function setBindings(b) {
+  bindings = b;
+  codeToAction = new Map();
+  for (const [action, codes] of Object.entries(b)) for (const c of codes) codeToAction.set(c, action);
+  // Help "Keyboard" card shows the effective keys.
+  document.querySelectorAll('kbd[data-key]').forEach((k) => {
+    k.textContent = (bindings[k.dataset.key] || []).map(keyLabel).join('/');
+  });
+}
+setBindings(DEFAULT_BINDINGS);
+
 document.addEventListener('keydown', (e) => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
   const phase = game.sess.phase;
-  const key = e.key;
+  const act = codeToAction.get(e.code);
 
-  if (key === 'Escape') {
+  if (act === 'back') {
     if (phase === 'active' && (game.selection.length || game.keyboardAnchor)) {
       cancelSelection(); ui.announce('Selection cancelled.');
     } else if (phase === 'active') {
@@ -363,7 +377,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (phase !== 'active') return;
 
-  const move = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[key];
+  const move = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] }[act];
   if (move) {
     e.preventDefault();
     const size = game.state.size;
@@ -380,7 +394,7 @@ document.addEventListener('keydown', (e) => {
       ', row ' + (game.cursor.r + 1) + ', column ' + (game.cursor.c + 1) + '.');
     return;
   }
-  if (key === 'Enter' || key === ' ') {
+  if (act === 'select') {
     e.preventDefault();
     if (!game.keyboardAnchor) {
       game.keyboardAnchor = { ...game.cursor };
@@ -393,8 +407,8 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (key === 'h' || key === 'H') { giveHint(); return; }
-  if (key === 'c' || key === 'C') { render.resetCamera(); ui.announce('Camera reset.'); }
+  if (act === 'hint') { giveHint(); return; }
+  if (act === 'camera') { render.resetCamera(); ui.announce('Camera reset.'); }
 });
 
 function giveHint() {
@@ -457,20 +471,27 @@ const SYNC_LABELS = { synced: 'cloud synced', saving: 'saving...', error: 'sync 
 function refreshProfileLine() {
   const name = platform.getProfileName();
   if (name) {
-    ui.setProfileLine('Playing as ' + name + ' · ' + (SYNC_LABELS[platform.getSyncStatus()] || 'offline'));
+    ui.setProfileLine(shT.playingAs.replace('{name}', name) + ' · ' + (SYNC_LABELS[platform.getSyncStatus()] || 'offline'));
     return;
   }
   const g = session.guestProfile();
   ui.setProfileLine('Playing as ' + g.name + (platform.hasToken() ? '' : ' (local guest)'));
 }
 
+// Sign-in (platform host, no token) / invite (signed in); hidden locally.
+function refreshAccountButtons() {
+  document.getElementById('btn-signin').hidden = !platform.canSignIn();
+  document.getElementById('btn-invite').hidden = !platform.hasToken();
+}
+
 function showTitle() {
   refreshProfileLine();
+  refreshAccountButtons();
   if (game.sess.phase === 'boot') game.sess.transition('title', 'boot-done');
   else ui.showScreen('title');
 }
 
-const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — read-only leaderboard' : 'Yes — validated replay submitted');
+const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — read-only leaderboard' : 'Yes — personal best kept on this device');
 
 ui.on('play', () => {
   // Short path to play: resume journey at the next unlocked level.
@@ -484,7 +505,7 @@ ui.on('play', () => {
 });
 
 ui.on('daily', () => {
-  const day = utcDay(platform.serverNow()).slice(0, 10);
+  const day = utcDay(Date.now()).slice(0, 10);
   const def = content.dailyDefinition(day);
   game.pendingDef = { ...def, label: 'Daily Challenge — ' + day, desc: 'One shared board for everyone today. Ranked.' };
   game.pendingMode = 'daily';
@@ -541,6 +562,12 @@ ui.on('settings-change', () => {
   applySettings(true);
 });
 
+// Local copy + per-player StarHermit settings KV (changed keys only).
+function persistSettings() {
+  session.saveSettings(game.settings);
+  platform.pushSettings(game.settings);
+}
+
 function applySettings(persist) {
   audio.setVolume('music', game.settings.musicVolume);
   audio.setVolume('effects', game.settings.effectsVolume);
@@ -549,8 +576,7 @@ function applySettings(persist) {
   render.setReducedMotion(game.settings.reducedMotion);
   ui.applyAccessibilityClasses(game.settings);
   if (persist) {
-    session.saveSettings(game.settings);
-    platform.telemetry('settings-change', { keys: 'user-adjusted' });
+    persistSettings();
   }
 }
 
@@ -561,8 +587,7 @@ function refreshGraphics() {
 function commitGraphics(next) {
   game.settings.graphics = next;
   render.setGraphics(next);
-  session.saveSettings(game.settings);
-  platform.telemetry('settings-change', { keys: 'graphics' });
+  persistSettings();
   refreshGraphics();
 }
 ui.on('graphics-preset', (preset) => commitGraphics(gfx.choosePreset(game.settings.graphics, preset)));
@@ -583,7 +608,7 @@ ui.on('settings-close', () => {
 
 ui.on('replay-tutorial', () => {
   game.settings.tutorialDone = false;
-  session.saveSettings(game.settings);
+  persistSettings();
   ui.showScreen(game.sess.phase === 'paused' ? 'pause' : 'title');
   ui.announce('Tutorial will play at the start of your next Journey level 1.');
 });
@@ -610,7 +635,6 @@ ui.on('hint', giveHint);
 ui.on('camera-reset', () => { render.resetCamera(); ui.announce('Camera reset.'); });
 
 ui.on('retry', () => {
-  platform.telemetry('retry', { mode: game.mode });
   game.sess.transition('preparing', 'retry');
   startRound(game.def, game.mode);
 });
@@ -634,19 +658,18 @@ ui.on('next', () => {
 
 ui.on('tutorial-next', () => {
   game.tutorialIndex++;
-  platform.telemetry('tutorial-step', { step: game.tutorialIndex });
   if (game.tutorialIndex < content.LESSONS.length) {
     ui.showTutorial(content.LESSONS[game.tutorialIndex], game.tutorialIndex === content.LESSONS.length - 1);
   } else {
     game.settings.tutorialDone = true;
-    session.saveSettings(game.settings);
+    persistSettings();
     beginCountdown();
   }
 });
 
 ui.on('tutorial-skip', () => {
   game.settings.tutorialDone = true;
-  session.saveSettings(game.settings);
+  persistSettings();
   beginCountdown();
 });
 
@@ -679,26 +702,36 @@ function boot() {
   window.addEventListener('resize', () => render.onResize());
   window.addEventListener('orientationchange', () => setTimeout(() => render.onResize(), 100));
   platform.onSyncStatus(refreshProfileLine);
+  ui.on('signin', () => platform.signIn());
+  ui.on('invite', async () => {
+    const link = platform.inviteLink();
+    if (!link) return;
+    try { await navigator.clipboard.writeText(link); ui.toast(shT.copied); }
+    catch { ui.toast(shT.copyFailed); }
+  });
+  platform.onAuth((a) => {
+    refreshProfileLine();
+    refreshAccountButtons();
+    if (!a.signedIn) ui.toast(shT.signedOut); // keep playing locally
+  });
   if (platform.hasToken()) {
-    // Platform launch: restore the cloud mirror first (remote wins), then
-    // start mirroring local changes back and keep the token fresh.
+    // Platform launch: restore the cloud mirror first (remote wins), apply the
+    // settings KV on top (platform wins), then mirror local changes back.
     platform.fetchProfile().then(refreshProfileLine);
-    platform.pullCloudSave().then((pulled) => {
-      if (pulled) {
-        game.settings = session.loadSettings();
-        applySettings(false);
+    platform.loadBindings(DEFAULT_BINDINGS).then(setBindings);
+    Promise.all([platform.pullCloudSave(), platform.loadPlatformSettings()]).then(([pulled, kv]) => {
+      game.settings = session.loadSettings();
+      let tuned = false;
+      for (const k of Object.keys(session.DEFAULT_SETTINGS)) {
+        if (kv[k] !== undefined && kv[k] !== null) { game.settings[k] = kv[k]; tuned = true; }
       }
+      if (tuned) session.saveSettings(game.settings);
+      platform.primeSettings(game.settings);
+      if (pulled || tuned) applySettings(false);
       platform.startCloudSync();
       refreshProfileLine();
     });
-    platform.startTokenRefresh();
-  } else {
-    // Local dev / offline: the own-server time probe gates the dev-only
-    // routes so an unhosted build never 404s into the console.
-    platform.syncTime().then((ok) => { if (!ok) platform.telemetry('error', { category: 'time-sync' }); });
-    platform.flushTelemetry();
   }
-  platform.telemetry('start', { screen: window.innerWidth + 'x' + window.innerHeight });
   showTitle();
   requestAnimationFrame(loop);
 }

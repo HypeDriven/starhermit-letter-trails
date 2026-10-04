@@ -130,6 +130,12 @@
     pointer-events: none; font: 12px/1.4 ui-monospace, monospace; color: #fff; background: rgba(0,0,0,0.5);
     padding: 2px 8px; border-radius: 6px; }
   #fps-meter[hidden] { display: none; }
+  /* StarHermit toast */
+  .sh-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sab));
+    z-index: 60; max-width: min(92vw, 420px); margin: 0; padding: 10px 16px; border-radius: 8px;
+    background: var(--paper); color: var(--ink); border: 2px solid var(--accent);
+    box-shadow: 0 6px 18px rgba(0,0,0,.35); text-align: center; }
+  .sh-toast[hidden] { display: none; }
 </style>
 <script type="importmap">
   { "imports": {
@@ -138,6 +144,7 @@
   } }
 </script>
 <script src="browser-guard.js"></script>
+<script src="starhermit-sdk.js"></script>
 </head>
 <body>
 <canvas id="game-canvas" aria-hidden="true"></canvas>
@@ -196,6 +203,8 @@
         <button id="btn-challenge">Challenge</button>
         <button id="btn-help">How to Play</button>
         <button id="btn-settings">Settings</button>
+        <button id="btn-signin" hidden>Sign in with StarHermit</button>
+        <button id="btn-invite" hidden>Invite a friend</button>
       </div>
       <p id="profile-line" class="muted"></p>
     </div>
@@ -324,7 +333,7 @@
       <div class="rule-card"><strong>Trace words.</strong> Drag (or use arrow keys + Enter) across a straight line of letters — horizontal, vertical, or diagonal — to spell a word from the list.</div>
       <div class="rule-card"><strong>Both directions.</strong> Words may read forwards or backwards along the line.</div>
       <div class="rule-card"><strong>Clean streaks.</strong> Invalid selections reset your clean bonus. Each word scores 20 points per letter, plus clean, speed, and daily-streak bonuses.</div>
-      <div class="rule-card"><strong>Keyboard.</strong> Arrows move the cursor, Enter/Space starts or confirms a line, Escape cancels or pauses, H gives a hint, C resets the camera.</div>
+      <div class="rule-card"><strong>Keyboard.</strong> <kbd data-key="up">↑</kbd> <kbd data-key="down">↓</kbd> <kbd data-key="left">←</kbd> <kbd data-key="right">→</kbd> move the cursor, <kbd data-key="select">Enter/Space</kbd> starts or confirms a line, <kbd data-key="back">Esc</kbd> cancels or pauses, <kbd data-key="hint">H</kbd> gives a hint, <kbd data-key="camera">C</kbd> resets the camera.</div>
       <div class="row"><button id="btn-help-close" class="primary">Close</button></div>
     </div>
   </section>
@@ -346,6 +355,7 @@
   <p id="board-desc" class="sr-only"></p>
 </div>
 
+<p id="sh-toast" class="sh-toast" role="status" aria-live="polite" hidden></p>
 <script type="module" src="./src/main.js?v=production-qa-1"></script>
 </body>
 </html>

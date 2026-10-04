@@ -18,7 +18,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | Platforms | Browser, desktop and mobile (portrait and landscape), no install |
 | Rendering | Three.js WebGL — a real 3D desk with box tiles, one directional key light, canvas letter atlas; all menus and HUD are DOM over the canvas |
 | Persistence | `localStorage` (settings, journey progress, best scores, daily streak, achievements, guest id) |
-| Network | Optional. Same-origin `/api/v1/*` on a StarHermit host; fully playable offline |
+| Network | Optional. Platform calls through the SDK only when signed in; standalone makes no network request |
 
 ### File map
 
@@ -33,12 +33,15 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, GPU detection, `resolve`, `presetTier`, `choosePreset`, `describe` |
 | `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, picked from `navigator.language` |
 | `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
-| `src/platform.js` | Launch token (fragment, refreshed every 45 min), Bearer `/api/v1` client, profile nickname, cloud-save mirror, read-only leaderboards; dev-only server-time/scores/events |
+| `starhermit-sdk.js` | Shared StarHermit client (unmodified copy) |
+| `src/platform.js` | Adapter over the SDK: launch token, sign-in/invite, profile nickname, cloud-save mirror, settings KV, key bindings, read-only leaderboards; no own-server calls |
+| `src/sh-strings.js` | Account strings in the nine locales |
 | `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form with General/Graphics tabs |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
-| `server.js` | Static server + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` |
+| `server.js` | Static server + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` (not called by the client) |
 | `tests/rules.test.mjs` | 26 `node --test` cases over rules, content and determinism |
 | `tests/gfx.test.mjs` | 8 `node --test` cases over the graphics model and its locale table |
+| `tests/platform.test.mjs` | 4 `node --test` cases: the StarHermit adapter over the real SDK with a stubbed fetch (token, profile, `game:<slug>` cloud save, settings KV, bindings, invite link, zero fetches standalone) |
 | `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile |
 | `tests/smoke.mjs` | Headless full-board playthrough with replay verification, prints state hashes |
 | `sfx/` | 18 Opus one-shots plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` |
@@ -449,39 +452,47 @@ because the letters on the board *are* the puzzle.
 `starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`,
 `cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
 
-**Used (platform launch — a `#game_token=` fragment was read).**
+`starhermit.txt` also lists one `control.<action>=<Code>[+<Code>] | <Label>` line per keyboard
+action (up, down, left, right, select, back, hint, camera).
 
-* **Identity** — the launch token is read once from the `#game_token=` fragment
-  (query `?token=` remains as a local-dev fallback), then stripped via
-  `history.replaceState`; it is held in memory only (never persisted) and sent
-  as `Authorization: Bearer` on every call. The payload supplies `sub` and
-  `game_scope` (the slug, never hard-coded). Without a token the game runs as a
-  locally stored guest profile.
-* **Token refresh** — every 45 min the client POSTs the current token to
-  `/api/v1/games/{slug}/launch-token` and swaps in the re-minted `{token}`;
-  failures retry after ~60 s.
-* **Profile** — `GET /api/v1/users/{sub}/profile` supplies the displayed
-  nickname (`"Player " + id.slice(0,8)` fallback; usernames never shown);
-  it renders in the title-screen profile line with the cloud sync status.
-* **Cloud save** — one slot at `GET`/`PUT /api/v1/me/cloud-saves/{slug}`:
-  the six `lt:*` game keys zip+base64'd (stored zip, no compression). The
-  remote wins on load; local writes are mirrored back (~2 s debounce,
-  `pagehide`/`visibilitychange` flush). localStorage stays the offline cache.
-* **Leaderboards (read-only)** — `GET /api/v1/games/{slug}` gives the
-  `leaderboardId`; `GET /api/v1/leaderboards/{id}/entries` renders the top 10
-  on the results screen, userIds resolved to nicknames. Clients cannot submit
-  scores; personal bests stay local (and cloud-mirrored). With no
-  `leaderboardId`, local records only.
+All platform calls go through the shared client `starhermit-sdk.js` (loaded before the game
+modules) via `src/platform.js`. Without a launch token the game makes no platform calls.
 
-**Used (local dev only — own server.js, no token).** The `/api/v1/time` probe
-(round-trip-adjusted daily boundary) gates the dev routes so an unhosted build
-stays silent: `POST /api/v1/scores` (replay validated by re-simulation),
-`GET /api/v1/scores?board=…`, and `POST /api/v1/events` telemetry (throttled,
-queued to `lt:telemetry-queue`, capped at 50). None of these are requested on
-a platform launch; platform mode uses the local clock for the daily boundary.
+**Used (on-platform).**
 
-**Not used.** Presence, matchmaking, realtime sessions, friends and social
-feeds: Letter Trails is single-player with a shared seed, so a daily
+* **Launch token + renewal** — `StarHermit.init()` reads `#game_token=` (library launch) or
+  `#access_token=` (sign-in return) once, strips it, keeps it in memory only and renews it
+  before expiry. If renewal is refused the game toasts "signed out", hides the invite button
+  and keeps playing and saving locally.
+* **Sign-in** — on `<id>.starhermit.com` without a token the title shows **Sign in with
+  StarHermit**; hidden when signed in and when running locally.
+* **Profile** — the profile `nickname` (fallback `Player <id prefix>`; usernames never shown)
+  renders in the title-screen profile line with the cloud sync status.
+* **Cloud save** — the six `lt:*` game keys are mirrored to the `game:<slug>` cloud-save slot.
+  The remote wins on load; local changes are written back (~2 s debounce, keepalive flush on
+  `pagehide`/hidden tab). localStorage stays the offline cache.
+* **Settings KV** — every preference (volumes, graphics, reduced motion, contrast, colour
+  vision, larger text, left-handed, hold-to-confirm, haptics, tutorial flag) is patched to the
+  per-player settings store when it changes (changed keys only); at boot the stored values
+  override the local ones.
+* **Controls** — keyboard input is routed by `event.code` through `StarHermit.loadBindings()`
+  (defaults = the manifest `control.*` lines); the Help "Keyboard" card shows the effective keys.
+* **Invite link** — signed-in players get **Invite a friend** on the title, copying
+  `StarHermit.inviteLink()` with a confirmation toast.
+* **Leaderboards (read-only)** — daily/journey results show the top 10 of the game's first
+  platform board when one exists (`StarHermit.leaderboard()`, names via profiles). Clients
+  cannot submit scores; personal bests stay local (and cloud-mirrored).
+
+Account strings (sign-in, invite, toasts, "Playing as") are localized in the nine locales
+(`src/sh-strings.js`).
+
+**Standalone (no launch token).** The client makes no request to any `/api` or `/ws` route:
+the device clock sets the daily boundary, bests stay local, no score submission and no
+telemetry. `server.js` still implements time, scores and events routes, but the client never
+calls them.
+
+**Not used.** Platform sessions, presence, matchmaking, friend-picker invites, chat,
+replays, realtime sessions and social feeds: Letter Trails is single-player with a shared seed, so a daily
 leaderboard is the whole social surface. Achievements stay local (part of the
 cloud-saved doc); `server.js` is a plain Node server, not a Jint game script,
 so there is no script-owned unlock path.
@@ -499,7 +510,7 @@ JSON projection with fixed key order. Identical seeds plus identical commands pr
 hashes across processes — asserted by `tests/rules.test.mjs` and re-verified by the server.
 
 **Persistence.** Six `localStorage` keys, all namespaced `lt:` — `settings`, `journey`,
-`achievements`, `best`, `streak`, `guest`, plus `lt:telemetry-queue`. Every read and write is
+`achievements`, `best`, `streak`, `guest`. Every read and write is
 wrapped: with storage unavailable the session runs normally and simply forgets. On a platform
 launch these keys are also mirrored to the cloud-save slot (remote wins on load, §12).
 
@@ -516,8 +527,8 @@ The render loop allocates nothing per frame (scratch vectors are module-level) a
 entirely while the tab is hidden. The clock is folded into the command log in ~5 s chunks, so a
 five-minute round adds about 60 commands to an envelope, not thousands.
 
-**How the e2e test drives the real UI.** `tests/e2e.mjs` serves the repo on an ephemeral port with
-stand-in `/api/v1` routes, launches system Chrome through `playwright-core`, and clicks the actual
+**How the e2e test drives the real UI.** `tests/e2e.mjs` serves the repo on an ephemeral port (no `/api`
+stand-ins; it fails on any same-origin `/api` or `/ws` request), launches system Chrome through `playwright-core`, and clicks the actual
 buttons: settings toggle, help, Play, mode start, tutorial next/skip, then solves the board with
 real arrow/Enter key presses, then exercises hint, pause, pause-settings, resume and leave on a
 second round. The Graphics tab is driven the same way: Auto must resolve to Low under SwiftShader,
@@ -558,14 +569,13 @@ completion through legal actions only, and asserts `replayVerify` accepts each l
 2. Every implemented feature is reachable in the browser: all five modes, hint, pause, settings,
    help, tutorial replay, journey level select, and the results actions.
 3. Zero console errors or warnings at both viewports, hosted and unhosted — hosted mode is
-   token-gated, the dev-only `/api/v1/time` probe keeps an unhosted build from ever requesting a
-   missing route, and the only expected hosted-mode network miss is the documented 404 from the
+   token-gated, an unhosted build makes no `/api` or `/ws` request at all, and the only expected hosted-mode network miss is the documented 404 from the
    empty cloud-save slot.
 4. No text or control is cut off at 1280×800 or 390×844, portrait or landscape: panels scroll
    internally, rails become drawers, and safe-area insets pad every edge.
 5. Features that could use platform services do: launch-token identity with nickname and token
    refresh, cloud saves with remote-preferred load, read-only leaderboards against the script-owned
-   board; validated replay submission and telemetry run against the local dev server.
+   board; there is no score submission or telemetry.
 
 ---
 

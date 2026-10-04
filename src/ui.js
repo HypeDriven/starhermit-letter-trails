@@ -272,6 +272,8 @@ export function init() {
   wire('btn-challenge', 'challenge');
   wire('btn-help', 'help');
   wire('btn-settings', 'settings');
+  wire('btn-signin', 'signin');
+  wire('btn-invite', 'invite');
   wire('btn-mode-start', 'mode-start');
   wire('btn-mode-back', 'back-title');
   wire('btn-journey-back', 'back-title');
@@ -326,6 +328,16 @@ export function closeSettings() {
 }
 
 export function setProfileLine(text) { $('profile-line').textContent = text; }
+
+// Short confirmation toast (its own polite live region).
+let toastTimer = null;
+export function toast(msg) {
+  const el = $('sh-toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3200);
+}
 
 // ---------------------------------------------------------------------------
 // Settings tabs + Graphics panel
