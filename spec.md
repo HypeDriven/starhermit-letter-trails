@@ -278,8 +278,11 @@ first button, and restores the previously focused element when it closes.
 **Layout.** `#app` is a three-column grid — 240 px word rail, canvas, 240 px status rail — with a
 bottom tray row. At ≤1023 px the grid collapses to one column, both rails become fixed 80vw-max
 drawers that slide in from the sides, and the tray becomes the visible action bar (Words, Hint,
-Pause, Status). Panels are `min(92vw, 560px)` wide and scroll internally at `max-height: 85vh`, so
+Pause, Status); each drawer has a ✕ close button. Panels are `min(92vw, 560px)` wide and scroll internally at `max-height: 85vh`, so
 no dialog is ever taller than the viewport.
+Above 1600×1000, `ui-scale.js` sets `--ui-scale` (`min(w/1600, h/1000)`, max 2.5) and `#app`, the
+toast and the FPS meter zoom by it, so rails, panels and the tray keep their 1600×1000 proportions;
+the full-viewport canvas is not zoomed, and vw/vh lengths inside the UI are divided by the scale.
 
 **Safe areas.** `env(safe-area-inset-*)` is read into `--sat/--sab/--sal/--sar` and applied to every
 screen's padding, both rails' margins and the tray. Nothing interactive sits under a notch, a home

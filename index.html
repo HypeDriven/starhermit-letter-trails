@@ -25,6 +25,9 @@
     grid-template-columns: 240px 1fr 240px;
     grid-template-rows: 1fr auto; }
   #app > * { pointer-events: auto; }
+  /* Large screens: the DOM UI zooms by --ui-scale (ui-scale.js; 1 at or below 1600x1000);
+     the full-viewport canvas stays unzoomed. vw/vh lengths are divided by the scale. */
+  #app, .sh-toast, #fps-meter { zoom: var(--ui-scale, 1); }
 
   button { font: inherit; min-width: 44px; min-height: 44px; padding: 10px 18px;
     border: 2px solid var(--ink); border-radius: 8px; background: var(--paper);
@@ -44,7 +47,7 @@
     background-image: linear-gradient(rgba(28, 20, 14, 0.55), rgba(28, 20, 14, 0.66)), url('./assets/keyart.webp');
     background-size: cover; background-position: center; }
   .panel { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
-    padding: 24px; max-width: 70ch; width: min(92vw, 560px); max-height: 85vh; overflow-y: auto;
+    padding: 24px; max-width: 70ch; width: min(calc(92vw / var(--ui-scale, 1)), 560px); max-height: calc(85vh / var(--ui-scale, 1)); overflow-y: auto;
     box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
   .panel h1, .panel h2 { margin-top: 0; line-height: 1.2; }
   .panel .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
@@ -63,24 +66,26 @@
   #word-list li.found { text-decoration: line-through; opacity: 0.55; }
   #word-list li.found::after { content: " ✓"; }
   #hud-stats { font-size: 0.95em; line-height: 1.6; }
+  .rail .row { display: flex; gap: 8px; margin-top: 12px; }
   #tray { grid-area: tray; display: none; gap: 8px; justify-content: center;
     padding: 8px calc(8px + var(--sar)) calc(8px + var(--sab)) calc(8px + var(--sal)); }
 
   /* Compact: rails become drawers */
   @media (max-width: 1023px) {
     #app { grid-template-columns: 1fr; grid-template-areas: "main" "tray"; }
-    .rail { position: fixed; top: 0; bottom: calc(64px + var(--sab)); width: min(80vw, 320px); margin: 0; z-index: 15;
+    .rail { position: fixed; top: 0; bottom: calc(64px + var(--sab)); width: min(calc(80vw / var(--ui-scale, 1)), 320px); margin: 0; z-index: 15;
       transition: transform 0.25s ease; border-radius: 0; }
     #rail-left { left: 0; transform: translateX(-105%); padding-top: calc(12px + var(--sat)); }
     #rail-right { right: 0; transform: translateX(105%); padding-top: calc(12px + var(--sat)); }
     #rail-left.open, #rail-right.open { transform: none; }
     /* drawers stop above the tray, which stays on top and reachable */
     #tray { display: flex; position: relative; z-index: 20; background: var(--paper); }
-    .rail-close { display: inline-flex; }
+    .rail > .rail-close { display: inline-flex; }
+    .rail > h2 { padding-right: 48px; }
     #drawer-scrim { position: fixed; inset: 0; bottom: calc(64px + var(--sab)); z-index: 14; background: rgba(0,0,0,0.35); }
     #drawer-scrim[hidden] { display: none; }
     /* announcements get their own row above the tray */
-    body #live { bottom: calc(70px + var(--sab)); background: rgba(0,0,0,0.55); color: #fff; padding: 4px 10px; border-radius: 8px; max-width: 92vw; text-align: center; }
+    body #live { bottom: calc(70px + var(--sab)); background: rgba(0,0,0,0.55); color: #fff; padding: 4px 10px; border-radius: 8px; max-width: calc(92vw / var(--ui-scale, 1)); text-align: center; }
   }
   .rail-close { display: none; position: absolute; top: calc(6px + var(--sat)); right: 6px; min-width: 44px; min-height: 44px;
     align-items: center; justify-content: center; border-radius: 8px; }
@@ -114,7 +119,7 @@
   .tabs [role=tab] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; background: var(--tile); }
   .tabs [role=tab][aria-selected=true] { background: var(--accent); color: #fff; font-weight: bold; }
   .range-wrap { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .range-wrap input[type=range] { min-width: 110px; width: 34vw; max-width: 200px; }
+  .range-wrap input[type=range] { min-width: 110px; width: calc(34vw / var(--ui-scale, 1)); max-width: 200px; }
   .range-wrap output { min-width: 3.5em; text-align: right; }
   #gfx-summary { overflow-wrap: anywhere; }
   #settings-graphics select { max-width: 60%; }
@@ -132,7 +137,7 @@
   #fps-meter[hidden] { display: none; }
   /* StarHermit toast */
   .sh-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sab));
-    z-index: 60; max-width: min(92vw, 420px); margin: 0; padding: 10px 16px; border-radius: 8px;
+    z-index: 60; max-width: min(calc(92vw / var(--ui-scale, 1)), 420px); margin: 0; padding: 10px 16px; border-radius: 8px;
     background: var(--paper); color: var(--ink); border: 2px solid var(--accent);
     box-shadow: 0 6px 18px rgba(0,0,0,.35); text-align: center; }
   .sh-toast[hidden] { display: none; }
@@ -143,6 +148,7 @@
     "three/addons/": "./vendor/addons/"
   } }
 </script>
+<script src="ui-scale.js"></script>
 <script src="browser-guard.js"></script>
 <script src="starhermit-sdk.js"></script>
 </head>
