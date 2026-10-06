@@ -34,7 +34,10 @@ export function showScreen(name) {
   currentScreen = name;
   if (name && screens[name]) {
     const first = screens[name].querySelector('button.primary, button, [tabindex]');
-    if (first) first.focus();
+    // preventScroll + reset: a low first button must not scroll the heading
+    // away; every screen opens at its top.
+    if (first) first.focus({ preventScroll: true });
+    for (const n of [screens[name], ...screens[name].querySelectorAll('*')]) if (n.scrollTop) n.scrollTop = 0;
   } else if (lastFocus && document.contains(lastFocus)) {
     lastFocus.focus(); // restore focus after modal/screen closes
   }

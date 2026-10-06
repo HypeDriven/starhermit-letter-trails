@@ -273,7 +273,7 @@ can leave to `mode-select`. An illegal transition throws rather than silently co
 
 Ten DOM screens (`#screen-title`, `mode`, `journey`, `practice`, `challenge`, `pause`, `settings`,
 `results`, `help`, `tutorial`) plus the HUD. `ui.showScreen` shows exactly one, moves focus to its
-first button, and restores the previously focused element when it closes.
+first button without scrolling (each screen opens at its top), and restores the previously focused element when it closes.
 
 **Layout.** `#app` is a three-column grid — 240 px word rail, canvas, 240 px status rail — with a
 bottom tray row. At ≤1023 px the grid collapses to one column, both rails become fixed 80vw-max
