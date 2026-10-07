@@ -34,11 +34,12 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, picked from `navigator.language` |
 | `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
 | `starhermit-sdk.js` | Shared StarHermit client (unmodified copy) |
-| `src/platform.js` | Adapter over the SDK: launch token, sign-in/invite, profile nickname, cloud-save mirror, settings KV, key bindings, read-only leaderboards; no own-server calls |
+| `src/platform.js` | Adapter over the SDK: launch token, sign-in/invite, profile nickname, cloud-save mirror, settings KV, key bindings, high-score leaderboard posting and top 10; no own-server calls |
 | `src/sh-strings.js` | Account strings in the nine locales |
 | `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form with General/Graphics tabs |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
-| `server.js` | Static server + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` (not called by the client) |
+| `score-script.js` | StarHermit platform script (`server=`): range-checks a ranked round's total and posts it to the `high-score` board (canonical copy in the games repo's `tools/score-script.js`) |
+| `server.js` | Local dev server: static files + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` (not called by the client) |
 | `tests/rules.test.mjs` | 26 `node --test` cases over rules, content and determinism |
 | `tests/gfx.test.mjs` | 8 `node --test` cases over the graphics model and its locale table |
 | `tests/platform.test.mjs` | 4 `node --test` cases: the StarHermit adapter over the real SDK with a stubbed fetch (token, profile, `game:<slug>` cloud save, settings KV, bindings, invite link, zero fetches standalone) |
@@ -196,7 +197,7 @@ carry no score penalty.
 Every command the player issues is appended to a replay envelope with the FNV hash of the resulting
 state (`session.recordCommand`). `session.replayVerify` rebuilds the initial state from
 `(seed, size, words)`, rejects duplicate command ids, re-runs the log, and fails on the first hash
-mismatch. `server.js` runs exactly that check before a score enters the leaderboard.
+mismatch. The local dev server's `/scores` route runs exactly that check; the platform `score-script.js` does not (it only range-checks).
 
 ---
 
@@ -452,7 +453,7 @@ because the letters on the board *are* the puzzle.
 
 ## 12. StarHermit integration
 
-`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`,
+`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=score-script.js`,
 `cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
 
 `starhermit.txt` also lists one `control.<action>=<Code>[+<Code>] | <Label>` line per keyboard
@@ -482,23 +483,24 @@ modules) via `src/platform.js`. Without a launch token the game makes no platfor
   (defaults = the manifest `control.*` lines); the Help "Keyboard" card shows the effective keys.
 * **Invite link** — signed-in players get **Invite a friend** on the title, copying
   `StarHermit.inviteLink()` with a confirmation toast.
-* **Leaderboards (read-only)** — daily/journey results show the top 10 of the game's first
-  platform board when one exists (`StarHermit.leaderboard()`, names via profiles). Clients
-  cannot submit scores; personal bests stay local (and cloud-mirrored).
+* **Leaderboard** — every finished ranked round (Play, Journey, Daily) posts its total through
+  `StarHermit.submitScores` (a practice session whose `score-script.js` posts it to the
+  `high-score` board: integer, higher is better, 0–100,000). The results screen then shows
+  "Leaderboard rank: #N" (or posted / not posted) and the board's top 10 (names via profiles).
+  Practice and Challenge rounds post nothing; personal bests also stay local (and cloud-mirrored).
 
-Account strings (sign-in, invite, toasts, "Playing as") are localized in the nine locales
+Account strings (sign-in, invite, toasts, "Playing as", the results leaderboard line) are localized in the nine locales
 (`src/sh-strings.js`).
 
 **Standalone (no launch token).** The client makes no request to any `/api` or `/ws` route:
 the device clock sets the daily boundary, bests stay local, no score submission and no
-telemetry. `server.js` still implements time, scores and events routes, but the client never
-calls them.
+telemetry. `server.js` (local dev server only) still implements time, scores and events routes,
+but the client never calls them.
 
 **Not used.** Platform sessions, presence, matchmaking, friend-picker invites, chat,
 replays, realtime sessions and social feeds: Letter Trails is single-player with a shared seed, so a daily
 leaderboard is the whole social surface. Achievements stay local (part of the
-cloud-saved doc); `server.js` is a plain Node server, not a Jint game script,
-so there is no script-owned unlock path.
+cloud-saved doc); `score-script.js` only posts scores, so there is no script-owned unlock path.
 
 ---
 
@@ -577,8 +579,8 @@ completion through legal actions only, and asserts `replayVerify` accepts each l
 4. No text or control is cut off at 1280×800 or 390×844, portrait or landscape: panels scroll
    internally, rails become drawers, and safe-area insets pad every edge.
 5. Features that could use platform services do: launch-token identity with nickname and token
-   refresh, cloud saves with remote-preferred load, read-only leaderboards against the script-owned
-   board; there is no score submission or telemetry.
+   refresh, cloud saves with remote-preferred load, ranked results posted to the script-owned
+   `high-score` board with the player's rank shown; there is no telemetry.
 
 ---
 

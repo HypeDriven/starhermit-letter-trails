@@ -221,18 +221,24 @@ function finishRound() {
   const nextLabel = game.mode === 'journey' ? 'Next Level' : 'Play Again';
   ui.showResults(game.state, { achievements: earned, best, nextLabel, constraint });
 
-  // Ranked surfacing (daily + journey): on the platform the leaderboard is
-  // read-only — clients can never submit scores — so only entries are read;
-  // personal bests stay local and cloud-mirrored. Standalone: local only.
+  // Ranked rounds (daily + journey) on the platform: post the total to the
+  // high-score board, show the rank, then the board's top 10. Standalone:
+  // local bests only.
   if ((game.mode === 'daily' || game.mode === 'journey') && platform.hasToken()) {
-    showRankedResults();
+    showRankedResults(game.state);
   }
 }
 
-async function showRankedResults() {
-  // No platform board → local records only.
+async function showRankedResults(st) {
+  const line = document.getElementById('results-lb');
+  line.hidden = false;
+  line.textContent = shT.lbPosting;
+  const r = await platform.submitScore(st.score.total);
+  if (!game.state || game.state !== st) return; // left the results screen
+  line.textContent = !r.posted ? shT.lbNotPosted
+    : r.rank ? shT.lbRank.replace('{rank}', r.rank) : shT.lbPosted;
   const lb = await platform.fetchPlatformLeaderboard({ pageSize: 10 });
-  if (lb.ok && lb.data.length) {
+  if (lb.ok && lb.data.length && game.state === st) {
     document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data);
   }
 }
@@ -491,7 +497,7 @@ function showTitle() {
   else ui.showScreen('title');
 }
 
-const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — read-only leaderboard' : 'Yes — personal best kept on this device');
+const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — posted to the leaderboard' : 'Yes — personal best kept on this device');
 
 ui.on('play', () => {
   // Short path to play: resume journey at the next unlocked level.

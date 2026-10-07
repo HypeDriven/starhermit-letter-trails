@@ -179,6 +179,8 @@ export function showResults(state, { achievements = [], best = false, nextLabel 
     ach.appendChild(p);
   }
   $('leaderboard-box').innerHTML = leaderboardHtml;
+  $('results-lb').hidden = true;
+  $('results-lb').textContent = '';
   $('btn-next').textContent = nextLabel;
   showScreen('results');
   announce('Round finished. Total score ' + state.score.total + '.', true);

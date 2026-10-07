@@ -3,7 +3,7 @@
 // Letter Trails — StarHermit platform integration over the shared SDK
 // (window.StarHermit from starhermit-sdk.js): launch token + renewal, sign-in,
 // profile nickname, game:<slug> cloud-save mirror, settings KV, key bindings,
-// invite link and read-only leaderboards. No own-server route is ever called:
+// invite link and the high-score leaderboard. No own-server route is ever called:
 // standalone (no launch token) makes no network request at all, and the
 // daily boundary uses the device clock. localStorage is always the offline
 // cache. Never persists tokens.
@@ -66,13 +66,29 @@ async function nicknameFor(id) {
 export function startTokenRefresh() {}
 
 // ---------------------------------------------------------------------------
-// Leaderboards — read-only on the platform; personal bests stay local.
+// Leaderboards — ranked rounds post to the high-score board (score-script.js);
+// personal bests also stay local.
 // ---------------------------------------------------------------------------
 
-// The game's first platform board (read-only), names resolved via profiles.
+// Post a finished ranked round; resolves { posted, rank } (rank may be null).
+export async function submitScore(total) {
+  if (!hasToken()) return { posted: false, rank: null };
+  const sh = SH();
+  try {
+    const keys = await sh.submitScores({ 'high-score': total });
+    if (!keys || keys.indexOf('high-score') < 0) return { posted: false, rank: null };
+    try {
+      const r = await sh.leaderboard('high-score', { pageSize: 100 });
+      const me = (r.items || []).find((i) => i.userId === sh.userId);
+      return { posted: true, rank: me ? me.rank : null };
+    } catch { return { posted: true, rank: null }; }
+  } catch { return { posted: false, rank: null }; }
+}
+
+// The high-score board's top entries, names resolved via profiles.
 export async function fetchPlatformLeaderboard({ pageSize = 10 } = {}) {
   if (!hasToken()) return { ok: false, error: 'not-hosted', data: [] };
-  const lb = await SH().leaderboard(null, { pageSize });
+  const lb = await SH().leaderboard('high-score', { pageSize });
   if (!lb || !lb.board) return { ok: false, error: 'no-board', data: [] };
   const rows = [];
   for (const e of lb.items || []) {
