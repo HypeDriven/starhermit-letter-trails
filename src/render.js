@@ -911,14 +911,14 @@ export function render(dt) {
   }
   if (composer) {
     try {
-      composer.render(step);
+      (globalThis.GameOptions ? globalThis.GameOptions.draw(composer.renderer, () => composer.render(step)) : composer.render(step));
       return;
     } catch {
       postFailed = true;
       buildPost(size[0], size[1]);
     }
   }
-  renderer.render(scene, camera);
+  (globalThis.GameOptions ? globalThis.GameOptions.draw(renderer, () => renderer.render(scene, camera)) : renderer.render(scene, camera));
 }
 
 export function onResize() {

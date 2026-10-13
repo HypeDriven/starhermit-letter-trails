@@ -71,7 +71,7 @@ function pitchVariant(spread = 0.06) {
 function blipShape(bus, { freq = 440, dur = 0.08, type = 'sine', gain = 0.3, slide = 0 }) {
   if (!unlock() || muted) return;
   const t0 = ctx.currentTime;
-  const osc = ctx.createOscillator();
+  const osc = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), bus) : ctx.createOscillator());
   const g = ctx.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(freq * pitchVariant(), t0);
@@ -128,7 +128,7 @@ function playSample(event, fallback) {
     return;
   }
   sampleCursor.set(event, i + 1);
-  const src = ctx.createBufferSource();
+  const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), event) : ctx.createBufferSource());
   src.buffer = buf;
   src.connect(effectsBus);
   src.start();
@@ -177,12 +177,12 @@ export function startAmbience() {
   const data = buf.getChannelData(0);
   const nrng = mulberry(991);
   for (let i = 0; i < len; i++) data[i] = nrng() * 2 - 1;
-  const src = ctx.createBufferSource();
+  const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), null) : ctx.createBufferSource());
   src.buffer = buf; src.loop = true;
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass'; filter.frequency.value = 320; filter.Q.value = 0.4;
   const g = ctx.createGain(); g.gain.value = 0.05;
-  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.11;
+  const lfo = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), null) : ctx.createOscillator()); lfo.frequency.value = 0.11;
   const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.02;
   lfo.connect(lfoGain); lfoGain.connect(g.gain);
   src.connect(filter); filter.connect(g); g.connect(ambienceBus);
