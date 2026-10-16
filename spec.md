@@ -31,18 +31,23 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/session.js` | Phase state machine, persistence, achievements, streaks, replay envelopes and `replayVerify` |
 | `src/render.js` | Three.js scene: desk, paper sheet, tiles, letter atlas, selection lift, trail ribbon, particles, picking, graphics settings and the post-processing chain |
 | `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, GPU detection, `resolve`, `presetTier`, `choosePreset`, `describe` |
-| `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, picked from `navigator.language` |
+| `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, following the game language |
+| `src/i18n.js`, `src/locales/` | Localization core (`T`, `N`, `setLocale`, `onLanguage`, `applyMarkup` incl. `data-i18n-html`) and per-locale catalogues keyed by the US-English text |
+| `sh-language.js` | Shared StarHermit language preference (`window.StarHermitLanguage`), an unmodified copy of `tools/sh-language.js` |
+| `game-options.js` | Shared frame-rate / Language / Sound / Report-a-problem sections (mounted in the Graphics tab, `data-options-graphics`), an unmodified copy of `tools/game-options.js` |
 | `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
 | `starhermit-sdk.js` | Shared StarHermit client (unmodified copy) |
 | `src/platform.js` | Adapter over the SDK: launch token, sign-in/invite, profile nickname, cloud-save mirror, settings KV, key bindings, high-score leaderboard posting and top 10; no own-server calls |
-| `src/sh-strings.js` | Account strings in the nine locales |
+| `src/sh-strings.js` | Account strings in the nine locales, following the game language |
 | `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form with General/Graphics tabs |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
 | `score-script.js` | StarHermit platform script (`server=`): range-checks a ranked round's total and posts it to the `high-score` board (canonical copy in the games repo's `tools/score-script.js`) |
 | `server.js` | Local dev server: static files + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` (not called by the client) |
 | `tests/rules.test.mjs` | 26 `node --test` cases over rules, content and determinism |
 | `tests/gfx.test.mjs` | 8 `node --test` cases over the graphics model and its locale table |
-| `tests/platform.test.mjs` | 4 `node --test` cases: the StarHermit adapter over the real SDK with a stubbed fetch (token, profile, `game:<slug>` cloud save, settings KV, bindings, invite link, zero fetches standalone) |
+| `tests/platform.test.mjs` | 5 `node --test` cases: the StarHermit adapter over the real SDK with a stubbed fetch (token, profile, `game:<slug>` cloud save, settings KV without shared `ui.*` keys, bindings, invite link, zero fetches standalone, UUID-host sign-in, a stale conditional write that reloads, merges and saves again) |
+| `tests/i18n.test.mjs`, `tests/i18n-keys.mjs` | Every UI key in all nine locales with matching placeholders and inline markup |
+| `tests/starhermit-e2e.mjs` | Stubbed StarHermit API for the signed-in e2e steps |
 | `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile |
 | `tests/smoke.mjs` | Headless full-board playthrough with replay verification, prints state hashes |
 | `sfx/` | 18 Opus one-shots plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` |
@@ -412,13 +417,28 @@ Haptics are a stored setting (`haptics: true`) and are not yet driven (§17).
 
 The product requirement is en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR, it-IT.
 
-**Today** every player-visible string is authored in US English inline: static copy in `index.html`,
-dynamic copy in `src/ui.js` (HUD labels, results rows, mode facts), announcements and error
-explanations in `src/main.js` (`explainReason`), and lesson text in `src/content.js` (`LESSONS`).
-`<html lang="en">` is fixed. There is no string table and no language selector — see §17 and §18.
-The exception is the Settings panel's tab names and the whole Graphics tab, which come from
-`src/gfx-i18n.js` in all nine locales, chosen from `navigator.language` (base-language fallback:
-es → es-419, fr → fr-FR, pt → pt-BR; unknown → en-US).
+Every player-visible string is localized. Static copy in `index.html` carries `data-i18n` /
+`data-i18n-aria` (the Help cards with inline `<kbd>` use `data-i18n-html`, keyed by their authored
+markup); code calls `T('<US-English text>', vars)` from `src/i18n.js`. Catalogues in `src/locales/`
+are keyed by the US-English text (en-US is the identity, en-GB lists spelling changes, es-ES and
+fr-CA list their differences from es-419 and fr-FR). Lessons, challenge and practice labels,
+achievements and word-bank theme names translate at display time; screen titles built in
+`main.js` are `[key, vars]` pairs. The Settings tab names and Graphics tab come from
+`src/gfx-i18n.js` for the same language.
+
+- Settings → Graphics tab → **Language → Game language** (rendered by `game-options.js` from the
+  `sh-language.js` instance) offers **Automatic — <resolved language>** plus the nine locales by
+  native name and a status line (Saved to account / Saved on this device / Account sync
+  unavailable); reachable from the title and from the pause menu.
+- A change applies immediately: markup is re-applied, `<html lang>` updates, key hints are redrawn,
+  and `ui.relocalize()` re-renders the Graphics labels, objective, progress, limit line, and the
+  open mode setup, results, tutorial, journey grid or challenge list, plus the profile line and the
+  results leaderboard line. The round and its found words are untouched.
+- Resolution (`sh-language.js`): explicit game choice → for Automatic, the StarHermit account's
+  `preferredLanguage` (`GET /api/v1/me/language`, signed in only) → `navigator.languages` → en-US.
+  The choice is stored per player in `localStorage['letter-trails.language.<user|guest>']` and,
+  signed in, in the per-player settings key `ui.language` as `{ choice }`; the game's settings
+  mirror ignores `ui.*` keys. `?lang=` forces a locale for the page load (QA).
 
 **Constraints the current UI already respects**, so a string table can land without relayout:
 panels wrap and scroll rather than clipping, buttons size to content with a 44 px floor, and the
@@ -489,8 +509,17 @@ modules) via `src/platform.js`. Without a launch token the game makes no platfor
   "Leaderboard rank: #N" (or posted / not posted) and the board's top 10 (names via profiles).
   Practice and Challenge rounds post nothing; personal bests also stay local (and cloud-mirrored).
 
+* **Save conflicts** — after the boot load, cloud writes are conditional (SDK ETag). When another
+  device saved first the SDK emits `saveconflict`; `platform.resolveConflict()` reloads the slot and
+  merges it with the local keys (`mergeCloudDocs`: union of completed journey levels, achievements
+  with the earliest unlock time, the larger word total, the best score per mode, the more recent
+  daily streak, this device's settings and guest profile), applies it, and saves it again.
+* **Report a problem** — Settings (signed in only, from `game-options.js`) files a bug report
+  through `StarHermit.reportBug`; uncaught errors are filed as crash reports through
+  `StarHermit.captureCrashes` (SDK-capped).
+
 Account strings (sign-in, invite, toasts, "Playing as", the results leaderboard line) are localized in the nine locales
-(`src/sh-strings.js`).
+(`src/sh-strings.js`) and follow the game language.
 
 **Standalone (no launch token).** The client makes no request to any `/api` or `/ws` route:
 the device clock sets the daily boundary, bests stay local, no score submission and no
@@ -547,7 +576,7 @@ error or warning fails the run.
 
 ## 14. Testing and acceptance criteria
 
-**`npm test`** (`node --test`, 34 cases) runs `tests/gfx.test.mjs` — GPU detection including the
+**`npm test`** (`node --test`, 51 cases incl. platform and i18n coverage) runs `tests/gfx.test.mjs` — GPU detection including the
 mobile cap, `resolve` with presets, overrides and render-scale clamping, preset choice clearing
 overrides, the cost summary, and complete Graphics strings in all nine locales — and
 `tests/rules.test.mjs`, which verifies: deterministic generation
@@ -562,7 +591,11 @@ UTC date; the 03:00 UTC rollover independent of local timezone; and a malformed-
 must neither throw nor hang.
 
 **`npm run test:e2e`** must print `E2E OK` for both the 1280×800 desktop pass and the 390×844 touch
-mobile pass, with zero console errors, warnings or page errors.
+mobile pass, with zero console errors, warnings or page errors. Each pass ends signed in against a
+stubbed API: `GET /api/v1/me/language` → fr-CA makes Automatic resolve to fr-CA; Deutsch in the
+Graphics tab re-renders Settings in place (the Language select survives), PUTs `ui.language`, a
+Report a problem posts to `/reports`; then Italiano chosen from the pause menu re-renders the pause
+menu, objective, progress and tray while the word list stays the same.
 
 **`node tests/smoke.mjs`** plays journey 1, journey 40, today's daily and the tight-grid challenge to
 completion through legal actions only, and asserts `replayVerify` accepts each log.
@@ -610,8 +643,6 @@ is cheaper and sharper to build in code than to ship as a mesh.
 
 ## 16. Known limitations
 
-* **English only.** All copy is inline English apart from the Graphics tab; no string table, no
-  language selector (§10).
 * **`colorVision`, `leftHanded`, `holdToConfirm` and `haptics`** persist and (for left-handed) apply
   a body class, but nothing currently reads them for layout, palette or vibration.
 * **No music bus content.** The music slider affects a bus with no source on it.
@@ -629,9 +660,8 @@ is cheaper and sharper to build in code than to ship as a mesh.
 
 ## 17. Design intent not yet implemented
 
-1. **Localized string table** for the nine required locales, with the language chosen from the launch
-   token, then `navigator.language`, then a settings override; per-language word banks so the puzzle
-   itself is translated rather than the chrome around it.
+1. **Per-language word banks** so the puzzle itself is localized; the UI is localized, the words
+   are English.
 2. **Colour-vision palettes** — the setting exists; the deuteranopia and tritanopia theme variants do
    not yet override `THEMES`.
 3. **Left-handed layout** — the class is applied but no rule mirrors the rails or tray.

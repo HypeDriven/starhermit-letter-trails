@@ -151,6 +151,7 @@
 </script>
 <script src="ui-scale.js"></script>
 <script src="browser-guard.js"></script>
+<script src="sh-language.js"></script>
 <script src="starhermit-sdk.js"></script>
 </head>
 <body>
@@ -158,42 +159,40 @@
 
 <div id="compat" role="alert">
   <div>
-    <h1>Letter Trails needs WebGL</h1>
-    <p>Your browser could not create a WebGL context, so the 3D board cannot start.
-    Your local progress and settings are preserved. Try a current version of
-    Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.</p>
+    <h1 data-i18n="Letter Trails needs WebGL">Letter Trails needs WebGL</h1>
+    <p data-i18n="Your browser could not create a WebGL context, so the 3D board cannot start. Your local progress and settings are preserved. Try a current version of Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.">Your browser could not create a WebGL context, so the 3D board cannot start. Your local progress and settings are preserved. Try a current version of Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.</p>
   </div>
 </div>
 
 <div id="app">
   <!-- Play HUD -->
   <div id="hud">
-    <aside id="rail-left" class="rail" aria-label="Objective and word list">
-      <button type="button" class="rail-close" id="rail-left-close" aria-label="Close word list">✕</button>
+    <aside id="rail-left" class="rail" aria-label="Objective and word list" data-i18n-aria="Objective and word list">
+      <button type="button" class="rail-close" id="rail-left-close" aria-label="Close word list" data-i18n-aria="Close word list">✕</button>
       <h2 id="objective">Find the words</h2>
       <p id="progress-text" class="muted">0 of 0</p>
-      <ul id="word-list" aria-label="Words to find"></ul>
+      <ul id="word-list" aria-label="Words to find" data-i18n-aria="Words to find"></ul>
     </aside>
-    <aside id="rail-right" class="rail" aria-label="Status and actions">
-      <button type="button" class="rail-close" id="rail-right-close" aria-label="Close status">✕</button>
-      <h2>Status</h2>
+    <aside id="rail-right" class="rail" aria-label="Status and actions" data-i18n-aria="Status and actions">
+      <button type="button" class="rail-close" id="rail-right-close" aria-label="Close status" data-i18n-aria="Close status">✕</button>
+      <h2 data-i18n="Status">Status</h2>
       <div id="hud-stats" aria-live="off">
-        <div>Score: <span id="hud-score">0</span></div>
-        <div>Time: <span id="hud-time">0:00</span></div>
+        <div><span data-i18n="Score:">Score:</span> <span id="hud-score">0</span></div>
+        <div><span data-i18n="Time:">Time:</span> <span id="hud-time">0:00</span></div>
         <div id="hud-limit" class="muted"></div>
       </div>
       <div class="row" style="flex-direction:column">
-        <button id="btn-pause">Pause</button>
-        <button id="btn-hint">Hint (H)</button>
-        <button id="btn-camera">Reset Camera (C)</button>
+        <button id="btn-pause" data-i18n="Pause">Pause</button>
+        <button id="btn-hint" data-i18n="Hint (H)">Hint (H)</button>
+        <button id="btn-camera" data-i18n="Reset Camera (C)">Reset Camera (C)</button>
       </div>
     </aside>
     <div id="drawer-scrim" hidden></div>
     <div id="tray">
-      <button id="tray-words" aria-controls="rail-left" aria-expanded="false">Words</button>
-      <button id="tray-hint">Hint</button>
-      <button id="tray-pause">Pause</button>
-      <button id="tray-status" aria-controls="rail-right" aria-expanded="false">Status</button>
+      <button id="tray-words" aria-controls="rail-left" aria-expanded="false" data-i18n="Words">Words</button>
+      <button id="tray-hint" data-i18n="Hint">Hint</button>
+      <button id="tray-pause" data-i18n="Pause">Pause</button>
+      <button id="tray-status" aria-controls="rail-right" aria-expanded="false" data-i18n="Status">Status</button>
     </div>
   </div>
 
@@ -201,15 +200,15 @@
   <section id="screen-title" class="screen" aria-labelledby="title-h">
     <div class="panel" style="text-align:center">
       <h1 id="title-h">Letter Trails</h1>
-      <p class="muted">Trace straight lines through the letter grid to find the themed words.</p>
+      <p class="muted" data-i18n="Trace straight lines through the letter grid to find the themed words.">Trace straight lines through the letter grid to find the themed words.</p>
       <div class="row" style="justify-content:center; flex-direction:column; align-items:stretch">
-        <button id="btn-play" class="primary">Play</button>
-        <button id="btn-daily">Daily Challenge</button>
-        <button id="btn-journey">Journey</button>
-        <button id="btn-practice">Practice</button>
-        <button id="btn-challenge">Challenge</button>
-        <button id="btn-help">How to Play</button>
-        <button id="btn-settings">Settings</button>
+        <button id="btn-play" class="primary" data-i18n="Play">Play</button>
+        <button id="btn-daily" data-i18n="Daily Challenge">Daily Challenge</button>
+        <button id="btn-journey" data-i18n="Journey">Journey</button>
+        <button id="btn-practice" data-i18n="Practice">Practice</button>
+        <button id="btn-challenge" data-i18n="Challenge">Challenge</button>
+        <button id="btn-help" data-i18n="How to Play">How to Play</button>
+        <button id="btn-settings" data-i18n="Settings">Settings</button>
         <button id="btn-signin" hidden>Sign in with StarHermit</button>
         <button id="btn-invite" hidden>Invite a friend</button>
       </div>
@@ -224,8 +223,8 @@
       <p id="mode-desc"></p>
       <dl id="mode-facts"></dl>
       <div class="row">
-        <button id="btn-mode-start" class="primary">Start</button>
-        <button id="btn-mode-back">Back</button>
+        <button id="btn-mode-start" class="primary" data-i18n="Start">Start</button>
+        <button id="btn-mode-back" data-i18n="Back">Back</button>
       </div>
     </div>
   </section>
@@ -233,46 +232,46 @@
   <!-- Journey map -->
   <section id="screen-journey" class="screen" aria-labelledby="journey-h">
     <div class="panel">
-      <h2 id="journey-h">Journey</h2>
-      <p class="muted">Complete each stage to unlock the next. Mastery stages every 8th level.</p>
+      <h2 id="journey-h" data-i18n="Journey">Journey</h2>
+      <p class="muted" data-i18n="Complete each stage to unlock the next. Mastery stages every 8th level.">Complete each stage to unlock the next. Mastery stages every 8th level.</p>
       <div id="journey-grid" class="journey-grid"></div>
-      <div class="row"><button id="btn-journey-back">Back</button></div>
+      <div class="row"><button id="btn-journey-back" data-i18n="Back">Back</button></div>
     </div>
   </section>
 
   <!-- Practice -->
   <section id="screen-practice" class="screen" aria-labelledby="practice-h">
     <div class="panel">
-      <h2 id="practice-h">Practice</h2>
-      <p class="muted">Unranked. Restart freely; no effect on competitive rating.</p>
+      <h2 id="practice-h" data-i18n="Practice">Practice</h2>
+      <p class="muted" data-i18n="Unranked. Restart freely; no effect on competitive rating.">Unranked. Restart freely; no effect on competitive rating.</p>
       <div class="row" style="flex-direction:column; align-items:stretch">
-        <button data-diff="easy">Easy — 6×6, 5 words</button>
-        <button data-diff="medium">Medium — 7×7, 7 words</button>
-        <button data-diff="hard">Hard — 9×9, 10 words</button>
+        <button data-diff="easy" data-i18n="Easy — 6×6, 5 words">Easy — 6×6, 5 words</button>
+        <button data-diff="medium" data-i18n="Medium — 7×7, 7 words">Medium — 7×7, 7 words</button>
+        <button data-diff="hard" data-i18n="Hard — 9×9, 10 words">Hard — 9×9, 10 words</button>
       </div>
-      <div class="row"><button id="btn-practice-back">Back</button></div>
+      <div class="row"><button id="btn-practice-back" data-i18n="Back">Back</button></div>
     </div>
   </section>
 
   <!-- Challenge -->
   <section id="screen-challenge" class="screen" aria-labelledby="challenge-h">
     <div class="panel">
-      <h2 id="challenge-h">Challenge</h2>
-      <p class="muted">Constrained goals: move limits and speed targets.</p>
+      <h2 id="challenge-h" data-i18n="Challenge">Challenge</h2>
+      <p class="muted" data-i18n="Constrained goals: move limits and speed targets.">Constrained goals: move limits and speed targets.</p>
       <div id="challenge-list" class="row" style="flex-direction:column; align-items:stretch"></div>
-      <div class="row"><button id="btn-challenge-back">Back</button></div>
+      <div class="row"><button id="btn-challenge-back" data-i18n="Back">Back</button></div>
     </div>
   </section>
 
   <!-- Pause / settings overlay -->
   <section id="screen-pause" class="screen" aria-labelledby="pause-h" role="dialog" aria-modal="true">
     <div class="panel">
-      <h2 id="pause-h">Paused</h2>
+      <h2 id="pause-h" data-i18n="Paused">Paused</h2>
       <div class="row" style="flex-direction:column; align-items:stretch">
-        <button id="btn-resume" class="primary">Resume</button>
-        <button id="btn-pause-settings">Settings</button>
-        <button id="btn-pause-help">Help</button>
-        <button id="btn-leave">Leave Round</button>
+        <button id="btn-resume" class="primary" data-i18n="Resume">Resume</button>
+        <button id="btn-pause-settings" data-i18n="Settings">Settings</button>
+        <button id="btn-pause-help" data-i18n="Help">Help</button>
+        <button id="btn-leave" data-i18n="Leave Round">Leave Round</button>
       </div>
     </div>
   </section>
@@ -280,26 +279,26 @@
   <!-- Settings -->
   <section id="screen-settings" class="screen" aria-labelledby="settings-h" role="dialog" aria-modal="true">
     <div class="panel">
-      <h2 id="settings-h">Settings</h2>
-      <div class="tabs" role="tablist" aria-label="Settings sections">
+      <h2 id="settings-h" data-i18n="Settings">Settings</h2>
+      <div class="tabs" role="tablist" aria-label="Settings sections" data-i18n-aria="Settings sections">
         <button type="button" role="tab" id="tab-general" data-tab="general" aria-selected="true" aria-controls="settings-general" data-i18n-gfx="general">General</button>
         <button type="button" role="tab" id="tab-graphics" data-tab="graphics" aria-selected="false" aria-controls="settings-graphics" tabindex="-1" data-i18n-gfx="graphics">Graphics</button>
       </div>
       <div id="settings-general" role="tabpanel" aria-labelledby="tab-general">
-        <label class="setting">Music volume <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
-        <label class="setting">Effects volume <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
-        <label class="setting">Ambience volume <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
-        <label class="setting">Reduced motion <input id="set-reduced-motion" type="checkbox"></label>
-        <label class="setting">High contrast <input id="set-high-contrast" type="checkbox"></label>
-        <label class="setting">Color-vision palette
+        <label class="setting"><span data-i18n="Music volume">Music volume</span> <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting"><span data-i18n="Effects volume">Effects volume</span> <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting"><span data-i18n="Ambience volume">Ambience volume</span> <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
+        <label class="setting"><span data-i18n="Reduced motion">Reduced motion</span> <input id="set-reduced-motion" type="checkbox"></label>
+        <label class="setting"><span data-i18n="High contrast">High contrast</span> <input id="set-high-contrast" type="checkbox"></label>
+        <label class="setting"><span data-i18n="Color-vision palette">Color-vision palette</span>
           <select id="set-colorvision">
-            <option value="default">Default</option><option value="deuteranopia">Deuteranopia-safe</option>
-            <option value="tritanopia">Tritanopia-safe</option>
+            <option value="default" data-i18n="Default">Default</option><option value="deuteranopia" data-i18n="Deuteranopia-safe">Deuteranopia-safe</option>
+            <option value="tritanopia" data-i18n="Tritanopia-safe">Tritanopia-safe</option>
           </select></label>
-        <label class="setting">Larger text <input id="set-larger-text" type="checkbox"></label>
-        <label class="setting">Left-handed controls <input id="set-left-handed" type="checkbox"></label>
+        <label class="setting"><span data-i18n="Larger text">Larger text</span> <input id="set-larger-text" type="checkbox"></label>
+        <label class="setting"><span data-i18n="Left-handed controls">Left-handed controls</span> <input id="set-left-handed" type="checkbox"></label>
       </div>
-      <div id="settings-graphics" role="tabpanel" aria-labelledby="tab-graphics" hidden>
+      <div id="settings-graphics" role="tabpanel" aria-labelledby="tab-graphics" data-options-graphics hidden>
         <label class="setting"><span data-i18n-gfx="quality">Quality</span>
           <select id="set-quality" data-gfx="preset"></select></label>
         <label class="setting"><span data-i18n-gfx="renderScale">Render scale</span>
@@ -311,8 +310,8 @@
         <p id="gfx-post-note" hidden data-i18n-gfx="postUnavailable"></p>
       </div>
       <div class="row">
-        <button id="btn-replay-tutorial">Replay Tutorial</button>
-        <button id="btn-settings-close" class="primary">Done</button>
+        <button id="btn-replay-tutorial" data-i18n="Replay Tutorial">Replay Tutorial</button>
+        <button id="btn-settings-close" class="primary" data-i18n="Done">Done</button>
       </div>
     </div>
   </section>
@@ -321,15 +320,15 @@
   <section id="screen-results" class="screen" aria-labelledby="results-h">
     <div class="panel">
       <h2 id="results-h">Round Complete</h2>
-      <div id="score-breakdown" aria-label="Score breakdown"></div>
+      <div id="score-breakdown" aria-label="Score breakdown" data-i18n-aria="Score breakdown"></div>
       <p id="results-extra" class="muted"></p>
       <div id="achievements-earned"></div>
       <p id="results-lb" class="muted" aria-live="polite" hidden></p>
       <div id="leaderboard-box"></div>
       <div class="row">
-        <button id="btn-retry" class="primary">Retry</button>
+        <button id="btn-retry" class="primary" data-i18n="Retry">Retry</button>
         <button id="btn-next">Next</button>
-        <button id="btn-results-menu">Menu</button>
+        <button id="btn-results-menu" data-i18n="Menu">Menu</button>
       </div>
     </div>
   </section>
@@ -337,12 +336,12 @@
   <!-- Help -->
   <section id="screen-help" class="screen" aria-labelledby="help-h">
     <div class="panel">
-      <h2 id="help-h">How to Play</h2>
-      <div class="rule-card"><strong>Trace words.</strong> Drag (or use arrow keys + Enter) across a straight line of letters — horizontal, vertical, or diagonal — to spell a word from the list.</div>
-      <div class="rule-card"><strong>Both directions.</strong> Words may read forwards or backwards along the line.</div>
-      <div class="rule-card"><strong>Clean streaks.</strong> Invalid selections reset your clean bonus. Each word scores 20 points per letter, plus clean, speed, and daily-streak bonuses.</div>
-      <div class="rule-card"><strong>Keyboard.</strong> <kbd data-key="up">↑</kbd> <kbd data-key="down">↓</kbd> <kbd data-key="left">←</kbd> <kbd data-key="right">→</kbd> move the cursor, <kbd data-key="select">Enter/Space</kbd> starts or confirms a line, <kbd data-key="back">Esc</kbd> cancels or pauses, <kbd data-key="hint">H</kbd> gives a hint, <kbd data-key="camera">C</kbd> resets the camera.</div>
-      <div class="row"><button id="btn-help-close" class="primary">Close</button></div>
+      <h2 id="help-h" data-i18n="How to Play">How to Play</h2>
+      <div class="rule-card" data-i18n-html><strong>Trace words.</strong> Drag (or use arrow keys + Enter) across a straight line of letters — horizontal, vertical, or diagonal — to spell a word from the list.</div>
+      <div class="rule-card" data-i18n-html><strong>Both directions.</strong> Words may read forwards or backwards along the line.</div>
+      <div class="rule-card" data-i18n-html><strong>Clean streaks.</strong> Invalid selections reset your clean bonus. Each word scores 20 points per letter, plus clean, speed, and daily-streak bonuses.</div>
+      <div class="rule-card" data-i18n-html><strong>Keyboard.</strong> <kbd data-key="up">↑</kbd> <kbd data-key="down">↓</kbd> <kbd data-key="left">←</kbd> <kbd data-key="right">→</kbd> move the cursor, <kbd data-key="select">Enter/Space</kbd> starts or confirms a line, <kbd data-key="back">Esc</kbd> cancels or pauses, <kbd data-key="hint">H</kbd> gives a hint, <kbd data-key="camera">C</kbd> resets the camera.</div>
+      <div class="row"><button id="btn-help-close" class="primary" data-i18n="Close">Close</button></div>
     </div>
   </section>
 
@@ -353,7 +352,7 @@
       <p id="tutorial-text"></p>
       <div class="row">
         <button id="btn-tutorial-next" class="primary">Got it</button>
-        <button id="btn-tutorial-skip">Skip Tutorial</button>
+        <button id="btn-tutorial-skip" data-i18n="Skip Tutorial">Skip Tutorial</button>
       </div>
     </div>
   </section>
@@ -364,6 +363,6 @@
 </div>
 
 <p id="sh-toast" class="sh-toast" role="status" aria-live="polite" hidden></p>
-<script type="module" src="./src/main.js?v=production-qa-1"></script>
+<script type="module" src="./src/main.js?v=language-1"></script>
 </body>
 </html>

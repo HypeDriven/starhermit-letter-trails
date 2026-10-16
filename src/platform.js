@@ -24,6 +24,7 @@ export function parseLaunchToken() {
     initialized = true;
     sh.init();
     sh.on('saved', (ok) => setSyncStatus(ok ? 'synced' : 'error'));
+    sh.on('saveconflict', () => { resolveConflict(); });
     sh.on('auth', (a) => {
       if (!a.signedIn) { profileName = null; setSyncStatus('offline'); }
       for (const fn of authListeners) { try { fn(a); } catch { /* ignore */ } }
@@ -141,6 +142,51 @@ function applyCloudDoc(doc) {
   }
 }
 
+// Another device saved since this one last loaded the slot: keep everything
+// either side earned (journey levels, achievements with the earliest unlock,
+// the larger word total, the best score per mode, the more recent daily streak)
+// and this device's settings and guest profile.
+export function mergeCloudDocs(remote, local) {
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const r = obj(remote), l = obj(local);
+  const out = { ...r, ...l };
+  const rj = obj(r['lt:journey']), lj = obj(l['lt:journey']);
+  out['lt:journey'] = { ...rj, ...lj, completed: [...new Set([...(rj.completed || []), ...(lj.completed || [])])] };
+  const ra = obj(r['lt:achievements']), la = obj(l['lt:achievements']);
+  const unlocked = { ...obj(ra.unlocked) };
+  for (const [k, v] of Object.entries(obj(la.unlocked))) unlocked[k] = unlocked[k] && unlocked[k] < v ? unlocked[k] : v;
+  out['lt:achievements'] = { ...ra, ...la, unlocked, totalWords: Math.max(Number(ra.totalWords) || 0, Number(la.totalWords) || 0) };
+  const best = { ...obj(r['lt:best']) };
+  for (const [k, v] of Object.entries(obj(l['lt:best']))) best[k] = Math.max(Number(best[k]) || 0, Number(v) || 0);
+  out['lt:best'] = best;
+  const rs = obj(r['lt:streak']), ls = obj(l['lt:streak']);
+  out['lt:streak'] = String(rs.lastDay || '') > String(ls.lastDay || '') ? rs
+    : String(rs.lastDay || '') < String(ls.lastDay || '') ? ls
+    : ((Number(rs.days) || 0) > (Number(ls.days) || 0) ? rs : ls);
+  for (const k of ['lt:settings', 'lt:guest']) if (l[k] !== undefined) out[k] = l[k];
+  // Only keys that exist on either side are written back.
+  for (const k of Object.keys(out)) if (r[k] === undefined && l[k] === undefined) delete out[k];
+  return out;
+}
+
+const mergeListeners = new Set();
+/** fn() after a conflict merge rewrote the local keys. */
+export function onMerged(fn) { mergeListeners.add(fn); return () => mergeListeners.delete(fn); }
+
+// A conditional write was refused (another device saved first): reload the
+// slot, merge it with the local keys, apply, and save the merged doc again.
+export async function resolveConflict() {
+  if (!hasToken()) return;
+  setSyncStatus('saving');
+  const sh = SH();
+  const remote = await sh.loadJSON();
+  if (sh.saveLoadFailed() || sh.saveConflicted()) { setSyncStatus('error'); return; }
+  applyCloudDoc(mergeCloudDocs(remote, collectCloudDoc()));
+  for (const fn of mergeListeners) { try { fn(); } catch { /* listener */ } }
+  syncedFp = null;
+  scheduleCloudSave();
+}
+
 // Remote-first load: a cloud doc replaces the cached keys.
 export async function pullCloudSave() {
   if (!hasToken()) return false;
@@ -186,8 +232,13 @@ let lastSettings = null;
 let pendingPatch = null;
 let settingsTimer = null;
 
+// Game keys only: `ui.*` keys belong to shared modules (sh-language.js).
 export async function loadPlatformSettings() {
-  return hasToken() ? (await SH().getSettings()) || {} : {};
+  if (!hasToken()) return {};
+  const all = (await SH().getSettings()) || {};
+  const own = {};
+  for (const [k, v] of Object.entries(all)) if (!k.startsWith('ui.')) own[k] = v;
+  return own;
 }
 export function primeSettings(settings) { lastSettings = JSON.stringify(settings); }
 export function pushSettings(settings) {

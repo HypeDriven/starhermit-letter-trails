@@ -7,6 +7,11 @@
 import { twoDigit } from './util.js';
 import { CATEGORIES, PRESETS, presetTier } from './gfx.js';
 import * as gi18n from './gfx-i18n.js';
+import { T, N, getLang } from './i18n.js';
+
+// Word-bank keys (content.js) → display names; the words themselves are English data.
+const BANK_NAMES = { ocean: N('Ocean'), forest: N('Forest'), kitchen: N('Kitchen'), space: N('Space'), music: N('Music'), garden: N('Garden') };
+export const themeName = (key) => (BANK_NAMES[key] ? T(BANK_NAMES[key]) : key || '');
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,7 +55,8 @@ export function getScreen() { return currentScreen; }
 // ---------------------------------------------------------------------------
 
 let liveTimer = null;
-export function announce(msg, assertive = false) {
+export function announce(key, assertive = false, vars) {
+  const msg = T(key, vars);
   const el = $(assertive ? 'live-assertive' : 'live');
   el.textContent = '';
   // Clear then set so repeated messages are re-announced.
@@ -75,23 +81,34 @@ function renderLimitLine(movesUsed) {
   const ch = currentChallenge;
   if (!ch) { $('hud-limit').textContent = ''; return; }
   const parts = [];
-  if (ch.moveLimit) parts.push('Move limit: ' + ch.moveLimit + ' (used ' + movesUsed + ')');
-  if (ch.timeTargetMs) parts.push('Time target: ' + fmtTime(ch.timeTargetMs));
+  if (ch.moveLimit) parts.push(T('Move limit: {limit} (used {used})', { limit: ch.moveLimit, used: movesUsed }));
+  if (ch.timeTargetMs) parts.push(T('Time target: {time}', { time: fmtTime(ch.timeTargetMs) }));
   $('hud-limit').textContent = parts.join('. ') + '.';
 }
 
+let lastMovesUsed = 0;
 export function updateMovesUsed(movesUsed) {
+  lastMovesUsed = movesUsed;
   if (currentChallenge) renderLimitLine(movesUsed);
 }
 
+let objectiveArgs = null;
 export function setObjective(def, state) {
-  $('objective').textContent = 'Find ' + state.words.length + ' words' + (def.theme ? ' — ' + def.theme : '');
-  $('board-desc').textContent = 'Board is ' + state.size + ' by ' + state.size + ' letters. ' +
-    state.words.length + ' words to find. Use arrow keys to move between cells.';
+  objectiveArgs = [def, state];
+  lastMovesUsed = 0;
+  renderObjective();
   renderWordList(state);
   updateProgress(state);
   currentChallenge = def.mechanics && def.mechanics.challenge;
   renderLimitLine(0);
+}
+function renderObjective() {
+  if (!objectiveArgs) return;
+  const [def, state] = objectiveArgs;
+  $('objective').textContent = def.theme
+    ? T('Find {n} words — {theme}', { n: state.words.length, theme: themeName(def.theme) })
+    : T('Find {n} words', { n: state.words.length });
+  $('board-desc').textContent = T('Board is {size} by {size} letters. {n} words to find. Use arrow keys to move between cells.', { size: state.size, n: state.words.length });
 }
 
 export function renderWordList(state) {
@@ -105,8 +122,10 @@ export function renderWordList(state) {
   }
 }
 
+let lastProgress = null;
 export function updateProgress(state) {
-  $('progress-text').textContent = state.foundCount + ' of ' + state.words.length;
+  lastProgress = state;
+  $('progress-text').textContent = T('{found} of {total}', { found: state.foundCount, total: state.words.length });
   $('hud-score').textContent = String(state.score.total);
 }
 
@@ -124,69 +143,89 @@ function fmtTime(ms) {
 // Screens content
 // ---------------------------------------------------------------------------
 
-export function showModeSetup(def, { ranked, rankedLabel }) {
-  $('mode-h').textContent = def.label || def.id;
-  $('mode-desc').textContent = def.desc || '';
+// def.label / def.desc / rankedLabel are [key, vars] pairs (main.js) so this
+// screen re-renders in another language.
+const txt = (v) => (Array.isArray(v) ? T(v[0], resolveVars(v[1])) : T(v || ''));
+const resolveVars = (vars) => vars && Object.fromEntries(Object.entries(vars).map(([k, x]) => [k, typeof x === 'function' ? x() : x]));
+let modeArgs = null;
+export function showModeSetup(def, opts) {
+  modeArgs = [def, opts];
+  renderModeSetup();
+  showScreen('mode');
+}
+function renderModeSetup() {
+  if (!modeArgs) return;
+  const [def, { ranked, rankedLabel }] = modeArgs;
+  $('mode-h').textContent = def.label ? txt(def.label) : def.id;
+  $('mode-desc').textContent = def.desc ? txt(def.desc) : '';
   const dl = $('mode-facts');
   dl.textContent = '';
   const facts = [
-    ['Board', def.size + ' × ' + def.size],
-    ['Words', String(def.wordCount)],
-    ['Theme', def.theme],
-    ['Par', def.par.moves + ' moves, ' + fmtTime(def.par.timeMs)],
-    ['Expected duration', Math.max(1, Math.round(def.par.timeMs / 60000)) + ' min'],
-    ['Players', '1'],
-    ['Ranked', ranked ? (rankedLabel || 'Yes — validated replay submitted') : 'No'],
+    [N('Board'), def.size + ' × ' + def.size],
+    [N('Words'), String(def.wordCount)],
+    [N('Theme'), themeName(def.theme)],
+    [N('Par'), T('{moves} moves, {time}', { moves: def.par.moves, time: fmtTime(def.par.timeMs) })],
+    [N('Expected duration'), T('{n} min', { n: Math.max(1, Math.round(def.par.timeMs / 60000)) })],
+    [N('Players'), '1'],
+    [N('Ranked'), ranked ? (rankedLabel ? txt(rankedLabel) : T('Yes — validated replay submitted')) : T('No')],
   ];
   const ch = def.mechanics && def.mechanics.challenge;
-  if (ch && ch.moveLimit) facts.push(['Move limit', String(ch.moveLimit)]);
-  if (ch && ch.timeTargetMs) facts.push(['Time target', fmtTime(ch.timeTargetMs)]);
+  if (ch && ch.moveLimit) facts.push([N('Move limit'), String(ch.moveLimit)]);
+  if (ch && ch.timeTargetMs) facts.push([N('Time target'), fmtTime(ch.timeTargetMs)]);
   for (const [k, v] of facts) {
-    const dt = document.createElement('dt'); dt.textContent = k;
+    const dt = document.createElement('dt'); dt.textContent = T(k);
     const dd = document.createElement('dd'); dd.textContent = v;
     dl.append(dt, dd);
   }
-  showScreen('mode');
 }
 
-export function showResults(state, { achievements = [], best = false, nextLabel = 'Next', leaderboardHtml = '', constraint = '' }) {
-  $('results-h').textContent = state.status === 'complete' ? 'Board Complete!' : 'Round Over';
+let resultsArgs = null;
+export function showResults(state, opts) {
+  resultsArgs = [state, opts];
+  renderResults();
+  $('leaderboard-box').innerHTML = (opts && opts.leaderboardHtml) || '';
+  $('results-lb').hidden = true;
+  $('results-lb').textContent = '';
+  showScreen('results');
+  announce('Round finished. Total score {score}.', true, { score: state.score.total });
+}
+function renderResults() {
+  if (!resultsArgs) return;
+  const [state, { achievements = [], best = false, nextLabel = N('Next'), constraint = null }] = resultsArgs;
+  $('results-h').textContent = state.status === 'complete' ? T('Board Complete!') : T('Round Over');
   const box = $('score-breakdown');
   box.textContent = '';
   const rows = [
-    ['Words (' + state.foundCount + ')', state.score.wordPoints],
-    ['Clean bonuses', state.score.cleanBonus],
-    ['Speed bonuses', state.score.speedBonus],
-    ['Daily streak bonus', state.score.streakBonus],
-    ['Total', state.score.total],
+    [T('Words ({n})', { n: state.foundCount }), state.score.wordPoints],
+    [T('Clean bonuses'), state.score.cleanBonus],
+    [T('Speed bonuses'), state.score.speedBonus],
+    [T('Daily streak bonus'), state.score.streakBonus],
+    [T('Total'), state.score.total, true],
   ];
-  for (const [label, val] of rows) {
+  for (const [label, val, total] of rows) {
     const div = document.createElement('div');
-    div.className = 'score-row' + (label === 'Total' ? ' total' : '');
+    div.className = 'score-row' + (total ? ' total' : '');
     div.innerHTML = '<span></span><span></span>';
     div.children[0].textContent = label;
     div.children[1].textContent = String(val);
     box.appendChild(div);
   }
   $('results-extra').textContent =
-    'Time ' + fmtTime(state.elapsedMs) + ' · Invalid selections ' + state.invalidActions +
-    (best ? ' · New best score!' : '') + (constraint ? ' · ' + constraint : '');
+    T('Time {time} · Invalid selections {n}', { time: fmtTime(state.elapsedMs), n: state.invalidActions }) +
+    (best ? ' · ' + T('New best score!') : '') + (constraint ? ' · ' + txt(constraint) : '');
   const ach = $('achievements-earned');
   ach.textContent = '';
   for (const a of achievements) {
     const p = document.createElement('p');
-    p.textContent = '🏆 Achievement unlocked: ' + a.name + ' — ' + a.desc;
+    p.textContent = '🏆 ' + T('Achievement unlocked: {name} — {desc}', { name: T(a.name), desc: T(a.desc) });
     ach.appendChild(p);
   }
-  $('leaderboard-box').innerHTML = leaderboardHtml;
-  $('results-lb').hidden = true;
-  $('results-lb').textContent = '';
-  $('btn-next').textContent = nextLabel;
-  showScreen('results');
-  announce('Round finished. Total score ' + state.score.total + '.', true);
+  $('btn-next').textContent = T(nextLabel);
 }
 
+let journeyArgs = null;
 export function renderJourneyGrid(levels, completed, onPick) {
+  journeyArgs = [levels, completed, onPick];
   const grid = $('journey-grid');
   grid.textContent = '';
   levels.forEach((lv, i) => {
@@ -197,31 +236,43 @@ export function renderJourneyGrid(levels, completed, onPick) {
     b.textContent = (lv.mechanics.mastery ? '★' : '') + n;
     b.className = done ? 'done' : '';
     b.disabled = !unlocked;
-    b.setAttribute('aria-label', 'Level ' + n + (lv.mechanics.mastery ? ' (mastery)' : '') + (done ? ', completed' : unlocked ? '' : ', locked'));
+    const key = lv.mechanics.mastery
+      ? (done ? N('Level {n} (mastery), completed') : unlocked ? N('Level {n} (mastery)') : N('Level {n} (mastery), locked'))
+      : (done ? N('Level {n}, completed') : unlocked ? N('Level {n}') : N('Level {n}, locked'));
+    b.setAttribute('aria-label', T(key, { n }));
     if (unlocked) b.addEventListener('click', () => onPick(lv));
     grid.appendChild(b);
   });
 }
 
+let challengeArgs = null;
 export function renderChallengeList(challenges, onPick) {
+  challengeArgs = [challenges, onPick];
   const box = $('challenge-list');
   box.textContent = '';
   for (const c of challenges) {
     const b = document.createElement('button');
     const parts = [];
-    if (c.mechanics.challenge.moveLimit) parts.push('move limit ' + c.mechanics.challenge.moveLimit);
-    if (c.mechanics.challenge.timeTargetMs) parts.push('target ' + fmtTime(c.mechanics.challenge.timeTargetMs));
-    b.textContent = c.label + ' — ' + parts.join(', ');
+    if (c.mechanics.challenge.moveLimit) parts.push(T('move limit {n}', { n: c.mechanics.challenge.moveLimit }));
+    if (c.mechanics.challenge.timeTargetMs) parts.push(T('target {time}', { time: fmtTime(c.mechanics.challenge.timeTargetMs) }));
+    b.textContent = T(c.label) + ' — ' + parts.join(', ');
     b.addEventListener('click', () => onPick(c));
     box.appendChild(b);
   }
 }
 
+let tutorialArgs = null;
 export function showTutorial(step, isLast) {
-  $('tutorial-h').textContent = step.title;
-  $('tutorial-text').textContent = step.text;
-  $('btn-tutorial-next').textContent = isLast ? 'Start Playing' : 'Got it';
+  tutorialArgs = [step, isLast];
+  renderTutorial();
   showScreen('tutorial');
+}
+function renderTutorial() {
+  if (!tutorialArgs) return;
+  const [step, isLast] = tutorialArgs;
+  $('tutorial-h').textContent = T(step.title);
+  $('tutorial-text').textContent = T(step.text);
+  $('btn-tutorial-next').textContent = isLast ? T('Start Playing') : T('Got it');
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +385,22 @@ export function closeSettings() {
 
 export function setProfileLine(text) { $('profile-line').textContent = text; }
 
+/**
+ * The game language changed: data-i18n markup is already re-applied; re-render
+ * what code built (graphics labels, HUD, open screens). Never touches the round.
+ */
+export function relocalize() {
+  relabelGraphics();
+  renderObjective();
+  if (lastProgress) updateProgress(lastProgress);
+  if (currentChallenge) renderLimitLine(lastMovesUsed);
+  if (currentScreen === 'mode') renderModeSetup();
+  if (currentScreen === 'results') renderResults();
+  if (currentScreen === 'tutorial') renderTutorial();
+  if (currentScreen === 'journey' && journeyArgs) renderJourneyGrid(...journeyArgs);
+  if (currentScreen === 'challenge' && challengeArgs) renderChallengeList(...challengeArgs);
+}
+
 // Short confirmation toast (its own polite live region).
 let toastTimer = null;
 export function toast(msg) {
@@ -362,8 +429,20 @@ export function selectSettingsTab(name, focus = false) {
   if (name === 'graphics') emit('graphics-refresh');
 }
 
+// Graphics strings (gfx-i18n.js) follow the game language; relabel in place.
+const catLabels = [];
+function relabelGraphics() {
+  gi18n.setLocale(getLang());
+  document.querySelectorAll('[data-i18n-gfx]').forEach((el) => { el.textContent = gi18n.t(el.dataset.i18nGfx); });
+  for (const { span, sel, cat } of catLabels) {
+    span.textContent = gi18n.t('cat_' + cat);
+    for (const o of sel.options) if (o.value !== 'preset') o.textContent = gi18n.t('tier_' + o.value);
+  }
+  emit('graphics-refresh');
+}
+
 function initGraphicsPanel() {
-  gi18n.setLocale(navigator.language);
+  gi18n.setLocale(getLang());
   document.querySelectorAll('[data-i18n-gfx]').forEach((el) => { el.textContent = gi18n.t(el.dataset.i18nGfx); });
   // Tabs: click, and arrow/Home/End keys between them.
   for (const tab of TABS) {
@@ -399,6 +478,7 @@ function initGraphicsPanel() {
     sel.addEventListener('change', () => emit('graphics-change', { [cat]: sel.value === 'preset' ? null : sel.value }));
     label.append(span, ' ', sel);
     box.append(label);
+    catLabels.push({ span, sel, cat });
   }
   const preset = $('set-quality');
   for (const p of ['auto', ...PRESETS]) {

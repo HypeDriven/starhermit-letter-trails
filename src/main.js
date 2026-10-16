@@ -13,8 +13,11 @@ import * as ui from './ui.js';
 import * as gfx from './gfx.js';
 import { now, uid, utcDay } from './util.js';
 import { shStrings } from './sh-strings.js';
+import { T, N, initLanguage, onLanguage, getLang } from './i18n.js';
 
-const shT = shStrings(navigator.languages || [navigator.language]);
+// The game language follows Settings › Language (sh-language.js).
+initLanguage();
+const shT = () => shStrings([getLang()]);
 
 // ---------------------------------------------------------------------------
 // Capability detection
@@ -75,7 +78,7 @@ game.sess.onTransition(({ to, reason }) => {
     ui.showScreen(null);
   } else if (to === 'paused') {
     ui.showScreen('pause');
-    ui.announce('Paused.');
+    ui.announce(N('Paused.'));
   }
 });
 
@@ -113,7 +116,7 @@ function beginCountdown() {
   if (game.sess.phase === 'preparing' || game.sess.phase === 'tutorial') {
     game.sess.transition('countdown', 'ready');
   }
-  ui.announce('Round starting. Find all ' + game.state.words.length + ' words.');
+  ui.announce(N('Round starting. Find all {n} words.'), false, { n: game.state.words.length });
   game.sess.transition('active', 'countdown-done');
   audio.startAmbience();
 }
@@ -140,15 +143,15 @@ function commitSelection() {
     ui.renderWordList(game.state);
     ui.updateProgress(game.state);
     const word = res.reason.slice(6);
-    ui.announce('Found ' + word + '! ' + game.state.foundCount + ' of ' + game.state.words.length + ' words.');
+    ui.announce(N('Found {word}! {found} of {total} words.'), false, { word, found: game.state.foundCount, total: game.state.words.length });
     if (game.state.status === 'complete') {
       finishRound();
     }
   } else {
     audio.sfx.invalid();
     render.updateSelection(cells, 'invalid');
-    const msg = explainReason(res.reason);
-    ui.announce(msg, true);
+    const [msg, vars] = explainReason(res.reason);
+    ui.announce(msg, true, vars);
     setTimeout(() => { render.updateSelection([], 'none'); }, 400);
   }
   game.selection = [];
@@ -157,14 +160,14 @@ function commitSelection() {
 
 function explainReason(reason) {
   const map = {
-    'not-straight': 'That is not a straight line. Words hide in straight lines only.',
-    'no-word-match': 'Those letters are not on the word list.',
-    'already-found': 'You already found that word.',
-    'too-few-cells': 'Select at least two letters.',
-    'out-of-bounds': 'Selection went off the board.',
-    'not-active': 'The round is not active right now.',
+    'not-straight': N('That is not a straight line. Words hide in straight lines only.'),
+    'no-word-match': N('Those letters are not on the word list.'),
+    'already-found': N('You already found that word.'),
+    'too-few-cells': N('Select at least two letters.'),
+    'out-of-bounds': N('Selection went off the board.'),
+    'not-active': N('The round is not active right now.'),
   };
-  return map[reason] || 'Invalid selection: ' + reason;
+  return map[reason] ? [map[reason]] : [N('Invalid selection: {reason}'), { reason }];
 }
 
 function cancelSelection() {
@@ -201,24 +204,27 @@ function finishRound() {
   const best = session.recordBestScore(game.def.id, game.state.score.total);
 
   // Evaluate challenge constraints (move limit / time target) for the results.
-  let constraint = '';
+  // [key, vars] so the results screen can re-render it in another language.
+  let constraint = null;
   const ch = game.def.mechanics && game.def.mechanics.challenge;
   if (ch && (ch.moveLimit || ch.timeTargetMs)) {
     const parts = [];
     if (ch.moveLimit) {
-      const okMoves = game.movesUsed <= ch.moveLimit;
-      parts.push((okMoves ? 'met' : 'missed') + ' move limit (' + game.movesUsed + '/' + ch.moveLimit + ')');
+      const v = { used: game.movesUsed, limit: ch.moveLimit };
+      const key = game.movesUsed <= ch.moveLimit ? N('met move limit ({used}/{limit})') : N('missed move limit ({used}/{limit})');
+      parts.push(() => T(key, v));
     }
     if (ch.timeTargetMs) {
-      const okTime = game.state.elapsedMs <= ch.timeTargetMs;
-      parts.push((okTime ? 'beat' : 'missed') + ' time target (' + Math.floor(game.state.elapsedMs / 1000) + 's/' + Math.floor(ch.timeTargetMs / 1000) + 's)');
+      const v = { s: Math.floor(game.state.elapsedMs / 1000), target: Math.floor(ch.timeTargetMs / 1000) };
+      const key = game.state.elapsedMs <= ch.timeTargetMs ? N('beat time target ({s}s/{target}s)') : N('missed time target ({s}s/{target}s)');
+      parts.push(() => T(key, v));
     }
-    constraint = 'Challenge ' + parts.join(', ') + '.';
+    constraint = [N('Challenge: {parts}.'), { parts: () => parts.map((f) => f()).join(', ') }];
   }
 
   if (earned.length) audio.sfx.achievement();
   game.sess.transition('results', 'round-complete');
-  const nextLabel = game.mode === 'journey' ? 'Next Level' : 'Play Again';
+  const nextLabel = game.mode === 'journey' ? N('Next Level') : N('Play Again');
   ui.showResults(game.state, { achievements: earned, best, nextLabel, constraint });
 
   // Ranked rounds (daily + journey) on the platform: post the total to the
@@ -232,16 +238,28 @@ function finishRound() {
 async function showRankedResults(st) {
   const line = document.getElementById('results-lb');
   line.hidden = false;
-  line.textContent = shT.lbPosting;
+  lbLine = { pending: true };
+  renderLbLine();
   const r = await platform.submitScore(st.score.total);
   if (!game.state || game.state !== st) return; // left the results screen
-  line.textContent = !r.posted ? shT.lbNotPosted
-    : r.rank ? shT.lbRank.replace('{rank}', r.rank) : shT.lbPosted;
+  lbLine = r;
+  renderLbLine();
   const lb = await platform.fetchPlatformLeaderboard({ pageSize: 10 });
   if (lb.ok && lb.data.length && game.state === st) {
+    lbRows = lb.data;
     document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lb.data);
   }
 }
+
+let lbLine = null;
+function renderLbLine() {
+  const line = document.getElementById('results-lb');
+  const r = lbLine;
+  if (!r || line.hidden) return;
+  line.textContent = r.pending ? shT().lbPosting : !r.posted ? shT().lbNotPosted
+    : r.rank ? shT().lbRank.replace('{rank}', r.rank) : shT().lbPosted;
+}
+let lbRows = null;
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (ch) =>
@@ -250,9 +268,9 @@ function escapeHtml(s) {
 
 function renderLeaderboard(scores) {
   const rows = scores.slice(0, 10).map((s, i) =>
-    '<div class="score-row"><span>' + (i + 1) + '. ' + escapeHtml(s.player || 'player') +
+    '<div class="score-row"><span>' + (i + 1) + '. ' + escapeHtml(s.player || T('player')) +
     '</span><span>' + (Number.isFinite(s.score) ? s.score : 0) + '</span></div>').join('');
-  return rows ? '<h3>Leaderboard</h3>' + rows : '';
+  return rows ? '<h3>' + escapeHtml(T('Leaderboard')) + '</h3>' + rows : '';
 }
 
 function leaveRound() {
@@ -325,7 +343,7 @@ function endPointer(e, cancelled) {
                  now() - pointerDown.t < TAP_TIME_MS;
   pointerDown = null;
   if (game.sess.phase !== 'active') { cancelSelection(); return; }
-  if (cancelled) { cancelSelection(); ui.announce('Selection cancelled.'); return; }
+  if (cancelled) { cancelSelection(); ui.announce(N('Selection cancelled.')); return; }
   if (wasTap && game.selection.length === 1) { cancelSelection(); return; }
   commitSelection();
 }
@@ -373,7 +391,7 @@ document.addEventListener('keydown', (e) => {
 
   if (act === 'back') {
     if (phase === 'active' && (game.selection.length || game.keyboardAnchor)) {
-      cancelSelection(); ui.announce('Selection cancelled.');
+      cancelSelection(); ui.announce(N('Selection cancelled.'));
     } else if (phase === 'active') {
       pauseGame();
     } else if (phase === 'paused') {
@@ -396,8 +414,7 @@ document.addEventListener('keydown', (e) => {
       render.updateSelection([[game.cursor.r, game.cursor.c]], 'pending');
     }
     audio.sfx.uiMove();
-    ui.announce('Cell ' + game.state.grid[game.cursor.r][game.cursor.c] +
-      ', row ' + (game.cursor.r + 1) + ', column ' + (game.cursor.c + 1) + '.');
+    ui.announce(N('Cell {letter}, row {r}, column {c}.'), false, { letter: game.state.grid[game.cursor.r][game.cursor.c], r: game.cursor.r + 1, c: game.cursor.c + 1 });
     return;
   }
   if (act === 'select') {
@@ -407,14 +424,14 @@ document.addEventListener('keydown', (e) => {
       game.selection = [[game.cursor.r, game.cursor.c]];
       render.updateSelection(game.selection, 'pending');
       audio.sfx.select();
-      ui.announce('Line start set. Move to the end and press Enter to confirm.');
+      ui.announce(N('Line start set. Move to the end and press Enter to confirm.'));
     } else {
       commitSelection();
     }
     return;
   }
   if (act === 'hint') { giveHint(); return; }
-  if (act === 'camera') { render.resetCamera(); ui.announce('Camera reset.'); }
+  if (act === 'camera') { render.resetCamera(); ui.announce(N('Camera reset.')); }
 });
 
 function giveHint() {
@@ -425,8 +442,7 @@ function giveHint() {
   game.hintCells = action.cells;
   audio.sfx.hint();
   render.updateSelection(action.cells, 'pending');
-  ui.announce('Hint: the word ' + action.word + ' starts at row ' + (action.cells[0][0] + 1) +
-    ', column ' + (action.cells[0][1] + 1) + '.');
+  ui.announce(N('Hint: the word {word} starts at row {r}, column {c}.'), false, { word: action.word, r: action.cells[0][0] + 1, c: action.cells[0][1] + 1 });
   setTimeout(() => { if (!game.selection.length) render.updateSelection([], 'none'); }, 2500);
 }
 
@@ -440,7 +456,7 @@ function resumeGame() {
   if (game.sess.phase !== 'paused') return;
   game.sess.transition('active', 'user-resume');
   game.lastTickAt = now();
-  ui.announce('Resumed.');
+  ui.announce(N('Resumed.'));
 }
 
 // ---------------------------------------------------------------------------
@@ -472,16 +488,17 @@ document.addEventListener('visibilitychange', () => {
 // UI event wiring
 // ---------------------------------------------------------------------------
 
-const SYNC_LABELS = { synced: 'cloud synced', saving: 'saving...', error: 'sync error', offline: 'offline' };
+const SYNC_LABELS = { synced: N('cloud synced'), saving: N('saving...'), error: N('sync error'), offline: N('offline') };
 
 function refreshProfileLine() {
   const name = platform.getProfileName();
   if (name) {
-    ui.setProfileLine(shT.playingAs.replace('{name}', name) + ' · ' + (SYNC_LABELS[platform.getSyncStatus()] || 'offline'));
+    ui.setProfileLine(shT().playingAs.replace('{name}', name) + ' · ' + T(SYNC_LABELS[platform.getSyncStatus()] || SYNC_LABELS.offline));
     return;
   }
   const g = session.guestProfile();
-  ui.setProfileLine('Playing as ' + g.name + (platform.hasToken() ? '' : ' (local guest)'));
+  const guest = g.name === 'Guest' ? T('Guest') : g.name;
+  ui.setProfileLine(platform.hasToken() ? T('Playing as {name}', { name: guest }) : T('Playing as {name} (local guest)', { name: guest }));
 }
 
 // Sign-in (platform host, no token) / invite (signed in); hidden locally.
@@ -497,14 +514,16 @@ function showTitle() {
   else ui.showScreen('title');
 }
 
-const RANKED_LABEL = () => (platform.hasToken() ? 'Yes — posted to the leaderboard' : 'Yes — personal best kept on this device');
+const RANKED_LABEL = () => [platform.hasToken() ? N('Yes — posted to the leaderboard') : N('Yes — personal best kept on this device')];
+const JOURNEY_DESC = [N('Find every themed word on the board.')];
+const journeyLabel = (lv) => [N('Journey — Level {n}'), { n: content.JOURNEY.indexOf(lv) + 1 }];
 
 ui.on('play', () => {
   // Short path to play: resume journey at the next unlocked level.
   const progress = session.loadJourneyProgress();
   const idx = content.JOURNEY.findIndex((lv) => !progress.completed.includes(lv.id));
   const lv = content.JOURNEY[idx === -1 ? content.JOURNEY.length - 1 : idx];
-  game.pendingDef = { ...lv, label: 'Journey — Level ' + (content.JOURNEY.indexOf(lv) + 1), desc: 'Find every themed word on the board.' };
+  game.pendingDef = { ...lv, label: journeyLabel(lv), desc: JOURNEY_DESC };
   game.pendingMode = 'journey';
   ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-mode');
@@ -513,7 +532,7 @@ ui.on('play', () => {
 ui.on('daily', () => {
   const day = utcDay(Date.now()).slice(0, 10);
   const def = content.dailyDefinition(day);
-  game.pendingDef = { ...def, label: 'Daily Challenge — ' + day, desc: 'One shared board for everyone today. Ranked.' };
+  game.pendingDef = { ...def, label: [N('Daily Challenge — {day}'), { day }], desc: [N('One shared board for everyone today. Ranked.')] };
   game.pendingMode = 'daily';
   ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-daily');
@@ -523,7 +542,7 @@ ui.on('journey', () => {
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-journey');
   const progress = session.loadJourneyProgress();
   ui.renderJourneyGrid(content.JOURNEY, progress.completed, (lv) => {
-    game.pendingDef = { ...lv, label: 'Journey — Level ' + (content.JOURNEY.indexOf(lv) + 1), desc: 'Find every themed word on the board.' };
+    game.pendingDef = { ...lv, label: journeyLabel(lv), desc: JOURNEY_DESC };
     game.pendingMode = 'journey';
     ui.showModeSetup(game.pendingDef, { ranked: true, rankedLabel: RANKED_LABEL() });
   });
@@ -537,7 +556,7 @@ ui.on('practice', () => {
 
 ui.on('practice-pick', (diff) => {
   const def = content.practiceDefinition(diff, Math.floor(Math.random() * 0x7fffffff));
-  game.pendingDef = { ...def, label: 'Practice — ' + content.PRACTICE[diff].label, desc: 'Unranked practice board.' };
+  game.pendingDef = { ...def, label: [N('Practice — {difficulty}'), { difficulty: () => T(content.PRACTICE[diff].label) }], desc: [N('Unranked practice board.')] };
   game.pendingMode = 'practice';
   ui.showModeSetup(game.pendingDef, { ranked: false });
 });
@@ -546,7 +565,7 @@ ui.on('challenge', () => {
   if (game.sess.phase === 'title') game.sess.transition('mode-select', 'choose-challenge');
   ui.renderChallengeList(content.CHALLENGES, (c) => {
     const def = content.challengeDefinition(c.id);
-    game.pendingDef = { ...def, label: 'Challenge — ' + c.label, desc: 'Beat the constraint to master this board.' };
+    game.pendingDef = { ...def, label: [N('Challenge — {name}'), { name: () => T(c.label) }], desc: [N('Beat the constraint to master this board.')] };
     game.pendingMode = 'challenge';
     ui.showModeSetup(game.pendingDef, { ranked: false });
   });
@@ -616,7 +635,7 @@ ui.on('replay-tutorial', () => {
   game.settings.tutorialDone = false;
   persistSettings();
   ui.showScreen(game.sess.phase === 'paused' ? 'pause' : 'title');
-  ui.announce('Tutorial will play at the start of your next Journey level 1.');
+  ui.announce(N('Tutorial will play at the start of your next Journey level 1.'));
 });
 
 ui.on('mode-start', () => {
@@ -638,7 +657,7 @@ ui.on('pause', pauseGame);
 ui.on('resume', resumeGame);
 ui.on('leave', leaveRound);
 ui.on('hint', giveHint);
-ui.on('camera-reset', () => { render.resetCamera(); ui.announce('Camera reset.'); });
+ui.on('camera-reset', () => { render.resetCamera(); ui.announce(N('Camera reset.')); });
 
 ui.on('retry', () => {
   game.sess.transition('preparing', 'retry');
@@ -650,7 +669,7 @@ ui.on('next', () => {
     const idx = content.JOURNEY.indexOf(content.JOURNEY.find((l) => l.id === game.def.id));
     const next = content.JOURNEY[Math.min(idx + 1, content.JOURNEY.length - 1)];
     game.sess.transition('preparing', 'next-level');
-    game.pendingDef = { ...next, label: 'Journey — Level ' + (content.JOURNEY.indexOf(next) + 1), desc: 'Find every themed word on the board.' };
+    game.pendingDef = { ...next, label: journeyLabel(next), desc: JOURNEY_DESC };
     startRound(game.pendingDef, 'journey');
   } else {
     game.sess.transition('preparing', 'play-again');
@@ -698,6 +717,16 @@ function loop(t) {
 function boot() {
   platform.parseLaunchToken();
   ui.init();
+  // Language change: markup is re-applied by i18n.js; re-render the rest in place.
+  onLanguage(() => {
+    setBindings(bindings);
+    ui.relocalize();
+    refreshProfileLine();
+    renderLbLine();
+    if (lbRows && ui.getScreen() === 'results') document.getElementById('leaderboard-box').innerHTML = renderLeaderboard(lbRows);
+  });
+  // A cloud-save conflict merge rewrote the local keys: pick up merged settings.
+  platform.onMerged(() => { game.settings = session.loadSettings(); applySettings(false); });
   render.init(canvas, {
     reducedMotion: game.settings.reducedMotion,
     graphics: game.settings.graphics,
@@ -712,13 +741,13 @@ function boot() {
   ui.on('invite', async () => {
     const link = platform.inviteLink();
     if (!link) return;
-    try { await navigator.clipboard.writeText(link); ui.toast(shT.copied); }
-    catch { ui.toast(shT.copyFailed); }
+    try { await navigator.clipboard.writeText(link); ui.toast(shT().copied); }
+    catch { ui.toast(shT().copyFailed); }
   });
   platform.onAuth((a) => {
     refreshProfileLine();
     refreshAccountButtons();
-    if (!a.signedIn) ui.toast(shT.signedOut); // keep playing locally
+    if (!a.signedIn) ui.toast(shT().signedOut); // keep playing locally
   });
   if (platform.hasToken()) {
     // Platform launch: restore the cloud mirror first (remote wins), apply the
