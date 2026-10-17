@@ -30,7 +30,8 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `src/content.js` | Themes, six word banks, 40 journey levels, daily/practice/challenge definitions, tutorial lessons, offline validator |
 | `src/session.js` | Phase state machine, persistence, achievements, streaks, replay envelopes and `replayVerify` |
 | `src/render.js` | Three.js scene: desk, paper sheet, tiles, letter atlas, selection lift, trail ribbon, particles, picking, graphics settings and the post-processing chain |
-| `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, GPU detection, `resolve`, `presetTier`, `choosePreset`, `describe` |
+| `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, per-preset budgets (`BUDGETS`, `budget`), hardware level → preset (`LEVELS`, `detectLevel`, `presetForLevel`, `detectPreset`), `resolve`, `presetTier`, `choosePreset`, `describe` |
+| `src/gpu-level.js` | Shared StarHermit hardware-level detector (`window.StarHermitGpu`; copy of the canonical tools file, not edited here) |
 | `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, following the game language |
 | `src/i18n.js`, `src/locales/` | Localization core (`T`, `N`, `setLocale`, `onLanguage`, `applyMarkup` incl. `data-i18n-html`) and per-locale catalogues keyed by the US-English text |
 | `sh-language.js` | Shared StarHermit language preference (`window.StarHermitLanguage`), an unmodified copy of `tools/sh-language.js` |
@@ -344,8 +345,8 @@ starts about one board span behind the board, measured from the camera, so tiles
 any aspect ratio.
 
 **Graphics.** The tiles rest on a paper sheet laid on a desk in the theme's desk colour; the
-background is the same colour, darkened. With **detail** on, tiles are rounded boxes with a clear-coated
-physical material, the letter atlas is drawn at 256 px per glyph with paper grain, a soft edge
+background is the same colour, darkened. With **detail** on, tiles are rounded boxes (clear-coated physical
+material on High/Ultra), the letter atlas gets paper grain, a soft edge
 falloff and a letterpress highlight under each glyph (ink colour unchanged), the desk gets a seamless
 procedural wood grain, the paper a fibre texture, and pencils gain a sharpened wood tip and lead.
 **Reflections** add a PMREM-filtered `RoomEnvironment` as each lit material's `envMap`, with
@@ -357,14 +358,12 @@ RenderPass → GTAO ambient occlusion → UnrealBloom (threshold 1.0, so only th
 and bright highlights bloom) → OutputPass → colour grade (gentle S-curve, +7 % saturation, warm
 highlights / cool shadows, vignette) → SMAA or FXAA; MSAA uses the canvas, or a 4× multisampled
 target when the composer runs. The Settings panel has **General** and **Graphics** tabs. Graphics
-offers Quality (Auto, chosen from the WebGL unmasked renderer string: SwiftShader/llvmpipe and other
-software renderers get Low, discrete GPUs and Apple M get High, others Balanced, and touch devices are
-capped at Balanced; Low; Balanced; High; Ultra), a render scale of 50–200 %, one select per effect
+offers Quality (Auto, chosen from the StarHermit hardware level below; Low; Balanced; High; Ultra), a render scale of 50–200 %, one select per effect
 (shadows off/1024²/2048²/4096², ambient occlusion off/on/high, bloom, colour grade, anti-aliasing
 FXAA/SMAA/MSAA, reflections, surface detail plain/detailed, particles off/low/high), each defaulting
 to "From preset (…)", adaptive resolution (averages ~90 frames; above 26 ms steps the scale down by
 0.1 to 0.6, below 14 ms back up by 0.05), a frame-rate readout (top centre, never over controls) and
-a summary line "GPU · cost · W×H px". Picking a preset clears the overrides. Pixel ratio is
+a summary line "GPU · Level N · cost · W×H px" (the level label localized). Picking a preset clears the overrides. Pixel ratio is
 min(devicePixelRatio, preset cap: Low 1, Balanced 1.5, High/Ultra 2) × preset scale (Ultra 1.25) ×
 render scale × adaptive scale. Changes apply live — shadow maps, materials, the post chain and, for
 detail or particle changes, a rebuild of the current board that keeps found words — and persist in
@@ -372,6 +371,44 @@ detail or particle changes, a rebuild of the current board that keeps found word
 built or throws, the board renders without it and the Graphics tab says so. The current preset is
 exposed as `data-gfx-preset` on `<body>` and the canvas. Low draws exactly the plain scene with no
 composer, as cheap as the game was before the upgrade.
+
+**Hardware level and Auto.** `src/gpu-level.js` (the shared StarHermit detector, `window.StarHermitGpu`,
+loaded as a classic script before `src/main.js`) rates the GPU 0–20 (0 = Galaxy S20 / Intel UHD or
+weaker, 20 = RTX 5090, each level ≈ 1.23× the one below; laptop parts two levels lower; phones,
+tablets and ≤ 4 GB machines capped at 9; software renderers 0). Auto picks **Low from 0, Balanced from
+4, High from 10, Ultra from 17**, so strong desktop GPUs get Ultra; adaptive resolution still steps
+down when frames are slow. On phones and tablets the shared frame-rate option paces Auto at half the
+display refresh rate and starts at 16 simultaneous sounds.
+
+**Per-preset budgets** (`BUDGETS` in `src/gfx.js`; each tuned to hold 60 FPS on the weakest GPU Auto
+gives it — Low: level 0 phones / Intel UHD, Balanced: level 4 Iris Xe, High: level 10 GTX 1070, Ultra:
+level 17 RTX 4080). Gameplay is identical on every preset.
+
+| Preset | Materials (tiles, desk, paper, pencils) | Letter atlas cell | Desk / paper texture | Rounded-tile bevel segments | Sparkles (× per word and pool) | Dust motes | Bloom / GTAO resolution |
+|---|---|---|---|---|---|---|---|
+| Low | Lambert | 128 px | 256 px | 1 | 0.5× | 0.5× | ½ / ½ |
+| Balanced | Standard | 192 px | 512 px | 2 | 0.75× | 0.75× | ½ / ½ |
+| High | Physical (clearcoat tiles) with detail | 256 px | 512 px | 3 | 1× | 1× | ½ / ½ |
+| Ultra | Physical (clearcoat tiles) with detail | 384 px | 1024 px | 4 (12-sided pencils) | 1.5× | 1.5× | full / full |
+
+Every tile draws in two groups (all side faces with the shared edge material, the top face with its
+letter material) rather than the box's six. Sparkles scale within the preset by the hardware level
+(`StarHermitGpu.scaleBudget`, ≤ 2×; fewer below the floor). The board (keeping found words) is
+rebuilt when the preset's budget changes. Bloom and GTAO run at a fraction of the frame through a
+wrapped pass `setSize`.
+
+**60 FPS benchmark** (`node tools/gfx-bench.mjs letter-trails [--mobile --presets low,balanced]`,
+dev-only, real GPUs; hook `tests/gfx-bench.mjs` picks the preset in Settings → Graphics, starts
+Journey level 1 and keeps solving its words with arrow keys + Enter, retrying a finished board).
+Measured 2026-10-17 (an AMD Radeon iGPU at level 2 projected to each preset's floor level, the same
+page with draws skipped subtracted; typical p50 ≤ 12 ms and slow p90 ≤ 14 ms, CPU p90 ≤ 6 ms on the
+NVIDIA run):
+
+- Desktop 1920×1080: PASS low (typical 0.00, slow 1.92 ms at level 0; CPU 1.10 ms); PASS balanced
+  (typical 5.48, slow 6.17 ms at level 4; CPU 1.00 ms); PASS high (typical 1.86, slow 2.45 ms at
+  level 10; CPU 1.90 ms); PASS ultra (typical 4.28, slow 4.60 ms at level 17; CPU 2.00 ms).
+- Mobile 390×844 @3×: PASS low (typical 0.00, slow 1.00 ms at level 0; CPU 0.50 ms); PASS balanced
+  (typical 0.00, slow 0.00 ms at level 4; CPU 0.90 ms).
 
 ---
 
@@ -551,10 +588,10 @@ launch these keys are also mirrored to the cloud-save slot (remote wins on load,
 **Save migration.** States carry `version` and go through `MIGRATIONS` on load; a newer-than-supported
 version is rejected loudly rather than half-read.
 
-**Performance budgets.** One draw-call-cheap scene: `size²` tile meshes sharing one geometry and one
-edge material, one canvas atlas texture, two lights, one ribbon, and at most two point clouds. Graphics
+**Performance budgets.** One draw-call-cheap scene: `size²` tile meshes sharing one two-group geometry and
+one edge material, one canvas atlas texture, two lights, one ribbon, and at most two point clouds. Graphics
 presets cap pixel ratio at 1 / 1.5 / 2 / 2 and choose shadows and post effects (§8); Auto picks from the
-GPU, and adaptive resolution protects the frame rate. Board rebuilds dispose the previous desk, paper,
+hardware level, per-preset budgets size textures, LOD and particles, and adaptive resolution protects the frame rate. Board rebuilds dispose the previous desk, paper,
 pencils and particles as well as the tiles, so nothing accumulates across rounds.
 The render loop allocates nothing per frame (scratch vectors are module-level) and clamps `dt` to
 0.1 s. Board rebuilds fully dispose geometries, materials and textures. Rendering is skipped
@@ -565,7 +602,7 @@ five-minute round adds about 60 commands to an envelope, not thousands.
 stand-ins; it fails on any same-origin `/api` or `/ws` request), launches system Chrome through `playwright-core`, and clicks the actual
 buttons: settings toggle, help, Play, mode start, tutorial next/skip, then solves the board with
 real arrow/Enter key presses, then exercises hint, pause, pause-settings, resume and leave on a
-second round. The Graphics tab is driven the same way: Auto must resolve to Low under SwiftShader,
+second round. The Graphics tab is driven the same way: Auto must resolve to Low under SwiftShader with the summary naming Level 0,
 Low then High are selected, the shadows override and frame-rate toggle are set, and all of it must
 survive a page reload; picking a preset must clear the override, and Ultra runs in-game before
 returning to Auto. It reads word coordinates by importing `src/rules.js` inside the page purely to aim
@@ -576,8 +613,10 @@ error or warning fails the run.
 
 ## 14. Testing and acceptance criteria
 
-**`npm test`** (`node --test`, 51 cases incl. platform and i18n coverage) runs `tests/gfx.test.mjs` — GPU detection including the
-mobile cap, `resolve` with presets, overrides and render-scale clamping, preset choice clearing
+**`npm test`** (`node --test`, 52 cases incl. platform and i18n coverage) runs `tests/gfx.test.mjs` — the hardware level →
+preset mapping (SwiftShader / llvmpipe / `Radeon Graphics` / UHD → Low, Iris Xe → Balanced, GTX 1070 →
+High, RTX 4080 / 5090 → Ultra, phones and tablets Balanced at most), the per-preset budget table and its
+level scaling, `resolve` with presets, overrides and render-scale clamping, preset choice clearing
 overrides, the cost summary, and complete Graphics strings in all nine locales — and
 `tests/rules.test.mjs`, which verifies: deterministic generation
 that places every word; `legalActions` yields exactly the unfound words; every rejection reason

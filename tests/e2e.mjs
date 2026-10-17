@@ -139,6 +139,8 @@ async function runPass(browser, label, contextOptions) {
       // Headless Chrome renders with SwiftShader, so Auto must resolve to Low.
       if (await preset() !== 'low') throw new Error('Auto should resolve to low on a software GPU, got ' + await preset());
       if (!/detected: Low/.test(await page.textContent('#set-quality option[value=auto]'))) throw new Error('Auto option does not name the detected tier');
+      // The summary names the StarHermit hardware level (software GPU = level 0).
+      if (!/Level 0/.test(await page.textContent('#gfx-summary'))) throw new Error('summary lacks the hardware level: ' + await page.textContent('#gfx-summary'));
       await page.selectOption('#set-quality', 'low');
       await page.waitForFunction(() => document.body.dataset.gfxPreset === 'low');
       await page.selectOption('#set-quality', 'high');

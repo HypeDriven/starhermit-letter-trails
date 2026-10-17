@@ -516,7 +516,7 @@ export function refreshGraphicsPanel(saved, info) {
   }
   $('gfx-adaptive').checked = r.adaptive;
   $('gfx-show-fps').checked = r.showFps;
-  $('gfx-summary').textContent = info.gpu + ' · ' + info.summary;
+  $('gfx-summary').textContent = info.gpu + ' · ' + gi18n.t('level', { level: info.level ?? 0 }) + ' · ' + info.summary;
   $('gfx-post-note').hidden = !info.postFailed;
 }
 

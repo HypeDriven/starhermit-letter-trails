@@ -5,7 +5,7 @@
 // §10); this table is chosen from navigator.language.
 
 const EN = {
-  general: 'General', graphics: 'Graphics', quality: 'Quality', auto: 'Auto (detected: {tier})',
+  general: 'General', graphics: 'Graphics', quality: 'Quality', level: 'Level {level}', auto: 'Auto (detected: {tier})',
   preset_low: 'Low', preset_balanced: 'Balanced', preset_high: 'High', preset_ultra: 'Ultra',
   renderScale: 'Render scale', fromPreset: 'From preset ({tier})',
   adaptive: 'Adaptive resolution', showFps: 'Show frame rate',
@@ -19,7 +19,7 @@ const EN = {
 };
 
 const ES = {
-  general: 'General', graphics: 'Gráficos', quality: 'Calidad', auto: 'Automática (detectada: {tier})',
+  general: 'General', graphics: 'Gráficos', quality: 'Calidad', level: 'Nivel {level}', auto: 'Automática (detectada: {tier})',
   preset_low: 'Baja', preset_balanced: 'Equilibrada', preset_high: 'Alta', preset_ultra: 'Ultra',
   renderScale: 'Escala de renderizado', fromPreset: 'Según el ajuste ({tier})',
   adaptive: 'Resolución adaptativa', showFps: 'Mostrar fotogramas por segundo',
@@ -33,7 +33,7 @@ const ES = {
 };
 
 const FR = {
-  general: 'Général', graphics: 'Graphismes', quality: 'Qualité', auto: 'Auto (détectée : {tier})',
+  general: 'Général', graphics: 'Graphismes', quality: 'Qualité', level: 'Niveau {level}', auto: 'Auto (détectée : {tier})',
   preset_low: 'Basse', preset_balanced: 'Équilibrée', preset_high: 'Haute', preset_ultra: 'Ultra',
   renderScale: 'Échelle de rendu', fromPreset: 'Selon le préréglage ({tier})',
   adaptive: 'Résolution adaptative', showFps: 'Afficher les images par seconde',
@@ -52,7 +52,7 @@ export const STRINGS = {
   'es-419': { ...ES, tier_off: 'Apagado', tier_on: 'Encendido', showFps: 'Mostrar cuadros por segundo' },
   'es-ES': ES,
   'de-DE': {
-    general: 'Allgemein', graphics: 'Grafik', quality: 'Qualität', auto: 'Automatisch (erkannt: {tier})',
+    general: 'Allgemein', graphics: 'Grafik', quality: 'Qualität', level: 'Stufe {level}', auto: 'Automatisch (erkannt: {tier})',
     preset_low: 'Niedrig', preset_balanced: 'Ausgewogen', preset_high: 'Hoch', preset_ultra: 'Ultra',
     renderScale: 'Renderskalierung', fromPreset: 'Voreinstellung ({tier})',
     adaptive: 'Adaptive Auflösung', showFps: 'Bildrate anzeigen',
@@ -68,7 +68,7 @@ export const STRINGS = {
   'fr-CA': { ...FR, graphics: 'Graphiques', auto: 'Auto (détectée: {tier})', showFps: 'Afficher la fréquence d’images',
     postUnavailable: 'Le post-traitement n’est pas offert sur cet appareil; le plateau s’affiche sans.' },
   'pt-BR': {
-    general: 'Geral', graphics: 'Gráficos', quality: 'Qualidade', auto: 'Automática (detectada: {tier})',
+    general: 'Geral', graphics: 'Gráficos', quality: 'Qualidade', level: 'Nível {level}', auto: 'Automática (detectada: {tier})',
     preset_low: 'Baixa', preset_balanced: 'Equilibrada', preset_high: 'Alta', preset_ultra: 'Ultra',
     renderScale: 'Escala de renderização', fromPreset: 'Da predefinição ({tier})',
     adaptive: 'Resolução adaptativa', showFps: 'Mostrar taxa de quadros',
@@ -81,7 +81,7 @@ export const STRINGS = {
     d_bloom: 'brilho', d_reflections: 'reflexos', d_particles: 'partículas',
   },
   'it-IT': {
-    general: 'Generale', graphics: 'Grafica', quality: 'Qualità', auto: 'Automatica (rilevata: {tier})',
+    general: 'Generale', graphics: 'Grafica', quality: 'Qualità', level: 'Livello {level}', auto: 'Automatica (rilevata: {tier})',
     preset_low: 'Bassa', preset_balanced: 'Bilanciata', preset_high: 'Alta', preset_ultra: 'Ultra',
     renderScale: 'Scala di rendering', fromPreset: 'Dalla preimpostazione ({tier})',
     adaptive: 'Risoluzione adattiva', showFps: 'Mostra fotogrammi al secondo',

@@ -1,7 +1,7 @@
 'use strict';
 
 // Letter Trails — graphics quality model: presets, per-category overrides,
-// GPU detection and a cost summary. Pure (no three.js, no DOM) so the
+// hardware-level detection, per-preset budgets and a cost summary. Pure (no three.js, no DOM) so the
 // settings panel, the renderer and node tests agree on what a setting means.
 
 export const PRESETS = ['low', 'balanced', 'high', 'ultra'];
@@ -29,22 +29,66 @@ const TABLE = {
 
 export const SHADOW_MAP = { off: 0, low: 1024, medium: 2048, high: 4096 };
 
-/** Best preset for this GPU, from the unmasked renderer string when the browser exposes it. */
-export function detectPreset(gpu, { mobile = false } = {}) {
-  const g = String(gpu || '').toLowerCase();
-  let p = 'balanced';
-  if (/swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/.test(g)) p = 'low';
-  else if (/nvidia|geforce|rtx|gtx|quadro|radeon rx|radeon pro|amd radeon(?!.*graphics)|apple m\d/.test(g)) p = 'high';
-  // Touch/mobile devices never auto-select above Balanced (heat and battery).
-  if (mobile && PRESETS.indexOf(p) > PRESETS.indexOf('balanced')) p = 'balanced';
-  return p;
+// StarHermit hardware level (0–20, src/gpu-level.js → window.StarHermitGpu) at which Auto starts choosing
+// each preset. 0 = Galaxy S20 / Intel UHD or weaker, 20 = RTX 5090; phones, tablets and ≤ 4 GB machines
+// are capped at level 9 (Balanced); software renderers are level 0 (Low).
+export const LEVELS = { low: 0, balanced: 4, high: 10, ultra: 17 };
+
+/*
+ * Per-preset asset and effect budgets, each tuned to hold 60 FPS on the weakest GPU Auto gives the preset
+ * (Low: level 0 phones / Intel UHD; Balanced: level 4 Iris Xe; High: level 10 GTX 1070; Ultra: level 17
+ * RTX 4080; measured with tests/gfx-bench.mjs). Gameplay is identical on every preset.
+ *   material  tiles, desk, paper and pencils: 'lambert' (Low) | 'standard' (Balanced) | 'physical'
+ *             (clearcoated tiles with Tile detail on; High/Ultra)
+ *   atlas     letter-atlas cell size in px (26 glyphs in an 8 × 4 atlas)
+ *   wood      desk wood and paper texture size in px (Tile detail on)
+ *   segments  geometry LOD: rounded-tile bevel segments and pencil sides
+ *   sparks    multiplies found-word sparkles and their pool, then scaled by the hardware level within
+ *             the preset (≤ 2×); motes: multiplies the ambient dust motes
+ *   bloomRes / aoRes  bloom and GTAO resolution as a fraction of the frame
+ */
+export const BUDGETS = {
+  low: { material: 'lambert', atlas: 128, wood: 256, segments: 1, sparks: 0.5, motes: 0.5, bloomRes: 0.5, aoRes: 0.5 },
+  balanced: { material: 'standard', atlas: 192, wood: 512, segments: 2, sparks: 0.75, motes: 0.75, bloomRes: 0.5, aoRes: 0.5 },
+  high: { material: 'physical', atlas: 256, wood: 512, segments: 3, sparks: 1, motes: 1, bloomRes: 0.5, aoRes: 0.5 },
+  ultra: { material: 'physical', atlas: 384, wood: 1024, segments: 4, sparks: 1.5, motes: 1.5, bloomRes: 1, aoRes: 1 },
+};
+
+const gpuApi = () => globalThis.StarHermitGpu;
+
+/** Hardware level 0–20 for an unmasked renderer string plus StarHermitGpu.detectSystem() facts. */
+export function detectLevel(gpu, system = {}) {
+  const G = gpuApi();
+  if (!G) return LEVELS.balanced;
+  return G.detectLevel({ webgl: true, webgl2: true, ...system, gpu: String(gpu || '') });
+}
+
+/** Auto preset for a hardware level: Low 0, Balanced 4, High 10, Ultra 17. */
+export function presetForLevel(level) {
+  const G = gpuApi();
+  if (G) return G.presetForLevel(level, LEVELS);
+  return PRESETS.filter((p) => LEVELS[p] <= level).pop() || 'low';
+}
+
+/** Best preset for this GPU; phones and tablets are capped at Balanced by the hardware level. */
+export function detectPreset(gpu, system = {}) {
+  return presetForLevel(detectLevel(gpu, system));
+}
+
+/** A preset's concrete budget for a hardware level (sparks scale within the preset, ≤ 2×). */
+export function budget(preset, level) {
+  const b = { ...(BUDGETS[preset] || BUDGETS.balanced) };
+  const G = gpuApi(), floor = LEVELS[preset] ?? 0;
+  const k = G ? Math.min(2, G.scaleBudget(1, Number.isFinite(level) ? level : floor, floor)) : 1;
+  b.sparks = Math.round(b.sparks * k * 100) / 100;
+  return b;
 }
 
 /**
  * Resolve saved settings into concrete tiers.
  * `saved`: { preset: 'auto'|preset, render_scale, adaptive, show_fps, <category>: 'preset'|tier }.
  */
-export function resolve(saved, detected) {
+export function resolve(saved, detected, level) {
   const s = saved || {};
   const auto = !PRESETS.includes(s.preset);
   const preset = auto ? (PRESETS.includes(detected) ? detected : 'balanced') : s.preset;
@@ -58,6 +102,8 @@ export function resolve(saved, detected) {
   for (const [cat, tiers] of Object.entries(CATEGORIES)) {
     out[cat] = tiers.includes(s[cat]) ? s[cat] : row[cat];
   }
+  out.level = Number.isFinite(level) ? level : LEVELS[preset];
+  out.budget = budget(preset, out.level);
   out.adaptive = s.adaptive !== false;
   out.showFps = !!s.show_fps;
   // The composer runs only when something needs it; otherwise the canvas

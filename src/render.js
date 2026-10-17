@@ -18,7 +18,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { THEMES } from './content.js';
 import { mulberry } from './util.js';
-import { detectPreset, describe, resolve, SHADOW_MAP } from './gfx.js';
+import { detectLevel, presetForLevel, describe, resolve, SHADOW_MAP } from './gfx.js';
 
 // Authored framing constants (no magic offsets at call sites).
 const FRAMING = {
@@ -91,6 +91,7 @@ const _ndc = new THREE.Vector2();
 // Graphics state.
 let gpuName = '';
 let detected = 'balanced';
+let level = 0;
 let mobile = false;
 let q = resolve({}, 'low');
 let envTexture = null;
@@ -104,6 +105,43 @@ let frames = [];
 let fps = 0;
 let builtDetail = null;     // detail tier the current board was built with
 let builtParticles = null;
+let builtBudget = null;     // budget key (material, textures, LOD) the board was built with
+
+// Run a post pass at a fraction of the frame (per-preset budget). EffectComposer sizes every pass to the
+// full frame in addPass/setSize, so the pass's own setSize is wrapped to apply the scale.
+function atScale(pass, k) {
+  if (!(k > 0 && k < 1)) return pass;
+  const setSize = pass.setSize.bind(pass);
+  pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+  return pass;
+}
+
+// Material class per budget: Lambert (Low), Standard (Balanced), Physical where `phys` is given
+// (High/Ultra; otherwise Standard).
+function mat(params, phys) {
+  const kind = q.budget.material;
+  if (kind === 'lambert') {
+    const { roughness, metalness, envMapIntensity, ...rest } = params;
+    return new THREE.MeshLambertMaterial(rest);
+  }
+  if (kind === 'physical' && phys) return new THREE.MeshPhysicalMaterial({ ...params, ...phys });
+  return new THREE.MeshStandardMaterial(params);
+}
+
+// Two draw groups per tile instead of the box's six: every side face in group 0 (edge material),
+// the top face (BoxGeometry group 2, +y) in group 1 (the tile's letter material).
+function twoGroups(geo) {
+  const groups = geo.groups.slice().sort((a, b) => a.start - b.start);
+  const idx = geo.index ? geo.index.array : null;
+  const pick = (g) => { const out = []; for (let i = g.start; i < g.start + g.count; i++) out.push(idx ? idx[i] : i); return out; };
+  const side = [], top = [];
+  for (const g of groups) (g.materialIndex === 2 ? top : side).push(...pick(g));
+  geo.setIndex([...side, ...top]);
+  geo.clearGroups();
+  geo.addGroup(0, side.length, 0);
+  geo.addGroup(side.length, top.length, 1);
+  return geo;
+}
 
 // ---------------------------------------------------------------------------
 // Procedural textures (canvas; built once per board, disposed with it)
@@ -119,7 +157,7 @@ function canvasTex(cnv, srgb = true) {
 // One CanvasTexture with all 26 letters. Detailed: higher resolution, paper
 // grain and a letterpress highlight under each glyph (ink colour unchanged).
 function buildLetterAtlas(themeData, detailed) {
-  const cell = detailed ? 256 : 128, cols = 8, rows = 4;
+  const cell = q.budget.atlas, cols = 8, rows = 4; // preset budget: atlas cell size
   const cnv = document.createElement('canvas');
   cnv.width = cols * cell;
   cnv.height = rows * cell;
@@ -171,10 +209,12 @@ function letterTexture(letter) {
   return t;
 }
 
+// Drawn in 512-px units at the preset budget's size.
 function woodTexture(color) {
   const cnv = document.createElement('canvas');
-  cnv.width = 512; cnv.height = 512;
+  cnv.width = cnv.height = q.budget.wood;
   const ctx = cnv.getContext('2d');
+  ctx.scale(q.budget.wood / 512, q.budget.wood / 512);
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, 512, 512);
   const rng = mulberry(0x3d0d);
@@ -204,8 +244,9 @@ function woodTexture(color) {
 
 function paperTexture(color) {
   const cnv = document.createElement('canvas');
-  cnv.width = 512; cnv.height = 512;
+  cnv.width = cnv.height = q.budget.wood;
   const ctx = cnv.getContext('2d');
+  ctx.scale(q.budget.wood / 512, q.budget.wood / 512);
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, 512, 512);
   const rng = mulberry(0x9a9e);
@@ -294,7 +335,11 @@ export function init(canvasEl, options = {}) {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   raycaster = new THREE.Raycaster();
   gpuName = readGpuName(renderer);
-  detected = detectPreset(gpuName, { mobile });
+  // StarHermit hardware level → Auto preset (SwiftShader = level 0 → Low; phones cap at Balanced).
+  const G = globalThis.StarHermitGpu;
+  const system = G ? G.detectSystem() : {};
+  level = detectLevel(gpuName, { ...system, mobile: !!system.mobile || mobile });
+  detected = presetForLevel(level);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(THEMES.classic.desk).multiplyScalar(0.7); // behind menus before a board exists
@@ -355,6 +400,7 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
   const detailed = q.detail === 'detailed';
   builtDetail = q.detail;
   builtParticles = q.particles;
+  builtBudget = budgetKey();
   letterAtlas = track(buildLetterAtlas(theme, detailed));
 
   const deskColor = new THREE.Color(theme.desk);
@@ -366,7 +412,7 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
 
   // Wooden desk.
   const deskGeo = new THREE.PlaneGeometry(boardSpan * 10, boardSpan * 10);
-  const deskMat = new THREE.MeshStandardMaterial({ color: deskColor, roughness: 0.62, metalness: 0, envMapIntensity: 0.3 });
+  const deskMat = mat({ color: deskColor, roughness: 0.62, metalness: 0, envMapIntensity: 0.3 });
   if (detailed) {
     deskMat.map = woodTexture(theme.desk);
     deskMat.map.repeat.set(boardSpan * 10 / 4, boardSpan * 10 / 4);
@@ -381,7 +427,7 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
   // Paper sheet the tiles rest on.
   const sheetW = boardSpan + 1.1;
   const paperGeo = new THREE.PlaneGeometry(sheetW, sheetW * 1.08);
-  const paperMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(theme.paper), roughness: 0.95, envMapIntensity: 0.12 });
+  const paperMat = mat({ color: new THREE.Color(theme.paper), roughness: 0.95, envMapIntensity: 0.12 });
   if (detailed) {
     paperMat.map = paperTexture(theme.paper);
     paperMat.map.repeat.set(sheetW / 3, sheetW * 1.08 / 3);
@@ -396,11 +442,12 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
 
   // Deterministic decorative pencils (never raycast).
   const rng = mulberry((decorSeed ^ 0x51de) >>> 0);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(theme.accent), roughness: 0.65, envMapIntensity: 0.3 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0xb8916a, roughness: 0.85 });
-  const leadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.6, metalness: 0.2 });
-  const bodyGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.6, detailed ? 6 : 8);
-  const tipGeo = new THREE.ConeGeometry(0.06, 0.16, detailed ? 6 : 8);
+  const bodyMat = mat({ color: new THREE.Color(theme.accent), roughness: 0.65, envMapIntensity: 0.3 });
+  const woodMat = mat({ color: 0xb8916a, roughness: 0.85 });
+  const leadMat = mat({ color: 0x2a2a2e, roughness: 0.6, metalness: 0.2 });
+  const sides = q.budget.segments >= 4 ? 12 : detailed ? 6 : 8; // hexagonal pencils; rounder on Ultra
+  const bodyGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.6, sides);
+  const tipGeo = new THREE.ConeGeometry(0.06, 0.16, sides);
   const leadGeo = new THREE.ConeGeometry(0.02, 0.05, 8);
   for (let i = 0; i < 3; i++) {
     const pencil = new THREE.Group();
@@ -428,12 +475,13 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
   // Tiles.
   boardGroup = new THREE.Group();
   boardGroup.name = 'interaction-layer';
-  const tileGeo = track(detailed
-    ? new RoundedBoxGeometry(FRAMING.tileSize, FRAMING.tileHeight, FRAMING.tileSize, 3, 0.045)
-    : new THREE.BoxGeometry(FRAMING.tileSize, FRAMING.tileHeight, FRAMING.tileSize));
+  // Rounded bevels follow the preset's geometry LOD (budget `segments`).
+  const tileGeo = track(twoGroups(detailed
+    ? new RoundedBoxGeometry(FRAMING.tileSize, FRAMING.tileHeight, FRAMING.tileSize, q.budget.segments, 0.045)
+    : new THREE.BoxGeometry(FRAMING.tileSize, FRAMING.tileHeight, FRAMING.tileSize)));
   const edgeMat = track(detailed
-    ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(theme.tileEdge), roughness: 0.55, clearcoat: 0.45, clearcoatRoughness: 0.35, envMapIntensity: 0.45 })
-    : new THREE.MeshStandardMaterial({ color: new THREE.Color(theme.tileEdge), roughness: 0.8 }));
+    ? mat({ color: new THREE.Color(theme.tileEdge), roughness: 0.55, envMapIntensity: 0.45 }, { clearcoat: 0.45, clearcoatRoughness: 0.35 })
+    : mat({ color: new THREE.Color(theme.tileEdge), roughness: 0.8 }));
   tileMeshes = [];
   for (let r = 0; r < boardSize; r++) {
     const row = [];
@@ -445,9 +493,9 @@ export function buildBoard(state, themeKey = 'classic', decorSeed = 0) {
         emissive: new THREE.Color(theme.marker), emissiveIntensity: 0,
       };
       const topMat = track(detailed
-        ? new THREE.MeshPhysicalMaterial({ ...opts, roughness: 0.62, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.3 })
-        : new THREE.MeshStandardMaterial({ ...opts, roughness: 0.75 }));
-      const mats = [edgeMat, edgeMat, topMat, edgeMat, edgeMat, edgeMat];
+        ? mat({ ...opts, roughness: 0.62, envMapIntensity: 0.3 }, { clearcoat: 0.35, clearcoatRoughness: 0.3 })
+        : mat({ ...opts, roughness: 0.75 }));
+      const mats = [edgeMat, topMat];
       const tile = new THREE.Mesh(tileGeo, mats);
       tile.castShadow = true;
       tile.receiveShadow = true;
@@ -492,7 +540,7 @@ function buildParticles() {
   if (q.particles === 'off') return;
   const dot = softDotTexture();
   // Ambient dust motes drifting in the lamp light above the board.
-  const n = q.particles === 'high' ? 140 : 60;
+  const n = Math.round((q.particles === 'high' ? 140 : 60) * q.budget.motes); // × preset budget `motes`
   const pos = new Float32Array(n * 3);
   const rng = mulberry(0xd057);
   const ext = boardSpan * 0.8;
@@ -512,7 +560,7 @@ function buildParticles() {
   scene.add(motes);
 
   // Sparkle pool for found words.
-  const cap = 256;
+  const cap = Math.round(256 * q.budget.sparks); // pool × preset budget `sparks`
   sparkData = new Float32Array(cap * 7);
   const sg = new THREE.BufferGeometry();
   sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cap * 3), 3));
@@ -529,7 +577,7 @@ function buildParticles() {
 
 function burst(cells) {
   if (!sparks || motionOff()) return;
-  const per = q.particles === 'high' ? 8 : 4;
+  const per = Math.max(1, Math.round((q.particles === 'high' ? 8 : 4) * q.budget.sparks));
   const cap = sparkData.length / 7;
   for (const [r, c] of cells) {
     const t = tileMeshes[r][c];
@@ -633,7 +681,7 @@ export function resetCamera() { frameCamera(); }
 
 function markFound(t) {
   t.userData.found = true;
-  const top = t.material[2];
+  const top = t.material[1];
   top.color.set(theme.found);
   top.emissive.set(theme.found);
   top.emissiveIntensity = 0.12;
@@ -659,7 +707,7 @@ export function updateSelection(cells, validity) {
       const t = tileMeshes[r][c];
       if (!t.userData.found) {
         t.userData.targetLift = 0;
-        t.material[2].emissiveIntensity = 0;
+        t.material[1].emissiveIntensity = 0;
       }
     }
   }
@@ -668,7 +716,7 @@ export function updateSelection(cells, validity) {
   for (const [r, c] of cells) {
     const t = tileMeshes[r][c];
     t.userData.targetLift = FRAMING.liftSelected;
-    t.material[2].emissiveIntensity = Math.max(t.material[2].emissiveIntensity, intensity);
+    t.material[1].emissiveIntensity = Math.max(t.material[1].emissiveIntensity, intensity);
   }
   // Grounded ribbon from first to last cell.
   const a = tileMeshes[cells[0][0]][cells[0][1]].position;
@@ -720,7 +768,7 @@ export function setGraphics(saved) {
   const json = JSON.stringify(saved || {});
   if (renderer && json === lastGfxJson) return; // unrelated settings changed
   lastGfxJson = json;
-  q = resolve(saved || {}, detected);
+  q = resolve(saved || {}, detected, level);
   if (!renderer) return;
   const sm = SHADOW_MAP[q.shadows];
   const shadowsChanged = renderer.shadowMap.enabled !== sm > 0;
@@ -745,7 +793,7 @@ export function setGraphics(saved) {
   }
   applyEnv();
   // Board geometry/textures/particles depend on detail and particle tiers.
-  if (lastState && boardGroup && (builtDetail !== q.detail || builtParticles !== q.particles)) {
+  if (lastState && boardGroup && (builtDetail !== q.detail || builtParticles !== q.particles || builtBudget !== budgetKey())) {
     const found = [];
     for (let r = 0; r < boardSize; r++) for (let c = 0; c < boardSize; c++) if (tileMeshes[r][c].userData.found) found.push([r, c]);
     buildBoard(lastState, lastThemeKey, lastSeed);
@@ -759,6 +807,11 @@ export function setGraphics(saved) {
   if (canvas) canvas.dataset.gfxPreset = q.preset;
   document.body.dataset.gfxPreset = q.preset;
   onResize();
+}
+
+function budgetKey() {
+  const b = q.budget;
+  return [b.material, b.atlas, b.wood, b.segments, b.sparks, b.motes].join('|');
 }
 
 // Per-material reflections: each lit material stores its own strength in
@@ -789,6 +842,7 @@ export function graphicsInfo(words) {
   const px = [Math.round(size[0] * pixelRatio), Math.round(size[1] * pixelRatio)];
   return {
     gpu: gpuName || 'unknown GPU',
+    level,
     detected,
     resolved: q,
     summary: describe(q, px, words),
@@ -834,7 +888,7 @@ function buildPost(w, h) {
     c.setSize(w, h);
     c.addPass(new RenderPass(scene, camera));
     if (q.ao !== 'off') {
-      const ao = new GTAOPass(scene, camera, pw, ph);
+      const ao = atScale(new GTAOPass(scene, camera, pw, ph), q.budget.aoRes);
       ao.output = GTAOPass.OUTPUT.Default;
       ao.blendIntensity = 0.75;
       const hi = q.ao === 'high';
@@ -844,7 +898,7 @@ function buildPost(w, h) {
     }
     if (q.bloom === 'on') {
       // High threshold: only the selection trail, sparkles and bright highlights bloom.
-      c.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.3, 0.25, 1.0));
+      c.addPass(atScale(new UnrealBloomPass(new THREE.Vector2(w, h), 0.3, 0.25, 1.0), q.budget.bloomRes));
     }
     c.addPass(new OutputPass());
     if (q.grade === 'on') c.addPass(new ShaderPass(GradeShader));
