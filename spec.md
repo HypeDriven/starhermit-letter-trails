@@ -15,47 +15,41 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | Genre | Single-player word search / observation puzzle |
 | Players | 1 |
 | Session length | 1–5 minutes per board; ~8 minutes for a daily plus a journey level |
-| Platforms | Browser, desktop and mobile (portrait and landscape), no install |
-| Rendering | Three.js WebGL — a real 3D desk with box tiles, one directional key light, canvas letter atlas; all menus and HUD are DOM over the canvas |
-| Persistence | `localStorage` (settings, journey progress, best scores, daily streak, achievements, guest id) |
-| Network | Optional. Platform calls through the SDK only when signed in; standalone makes no network request |
+| Platforms | StarHermit engine 1.18.0 script game (host API 1.20, `engine.minor=20`): natively in the StarHermit client and in browsers through the engine's web runtime (desktop and mobile, portrait and landscape) |
+| Rendering | `starhermit:scene` (three.js r185 model) — a 3D desk with box tiles, one directional key light, a baked letter atlas; all menus and the HUD are `starhermit:ui`, built every frame over the scene |
+| Persistence | The engine save (`starhermit:storage` `saves`): one document holding the `lt:*` keys (settings, journey progress, best scores, daily streak, achievements, guest id), on the device and, signed in, in the cloud slot |
+| Network | Optional. Platform calls only when signed in (save sync, score posting, leaderboard, invite link) plus the platform clock |
 
 ### File map
 
 | Path | Owns |
 |---|---|
-| `index.html` | DOM shell: canvas, HUD rails, tray, all ten screens, CSS palette and responsive layout |
-| `src/main.js` | Boot, capability check, input (pointer + keyboard), round lifecycle, glue between every module |
+| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.18.0 / minor 20, capabilities `platform,storage,clipboard`, `control.*` and `engine.gamepad.*` defaults per action |
+| `native/main.ts` | Entry: app state, round lifecycle (setup → tutorial → active ⇄ paused → results), selection from keys, pointer and touch drags, hints, the fixed-step clock, results, achievements, ranked posting, lifecycle (a hidden window pauses) |
+| `native/screens.ts` | Every screen, the wide-layout rails, the compact tray and drawers, the announcement line and toast (`starhermit:ui`) |
+| `native/render.ts` | The board on `starhermit:scene`: desk, paper, tiles with per-letter UVs into the atlas, pencils, selection ribbon, motes, sparkles, lights, camera framing, picking, the post chain per graphics tier |
+| `native/quality.ts` | The look per graphics tier and level (the old presets and budgets) |
+| `native/audio.ts` | Opus one-shots per event on the runtime's buses; the ambience rendered once into a looping clip |
+| `native/platform.ts` | The save document (session.js view, foreign-save migration, conflict merge, legacy settings removal), player, invite link, platform clock, score posting through `score-script.js`, the board's top ten |
+| `native/i18n.ts` | Locale from the runtime's interface language; `T` / `N` / `M` over `src/i18n.js`, `S` over `src/sh-strings.js` |
+| `native/style.ts` | Registers `assets/ui-style.json`, the theme and serif font; the high-contrast tokens |
+| `native/game.ts` | Typed facade over the shared `src/*.js` modules |
 | `src/rules.js` | Pure deterministic rules engine: board generation, legality, commands, scoring, hashing, save migration |
 | `src/content.js` | Themes, six word banks, 40 journey levels, daily/practice/challenge definitions, tutorial lessons, offline validator |
-| `src/session.js` | Phase state machine, persistence, achievements, streaks, replay envelopes and `replayVerify` |
-| `src/render.js` | Three.js scene: desk, paper sheet, tiles, letter atlas, selection lift, trail ribbon, particles, picking, graphics settings and the post-processing chain |
-| `src/gfx.js` | Pure graphics quality model: presets, per-category overrides, per-preset budgets (`BUDGETS`, `budget`), hardware level → preset (`LEVELS`, `detectLevel`, `presetForLevel`, `detectPreset`), `resolve`, `presetTier`, `choosePreset`, `describe` |
-| `src/gpu-level.js` | Shared StarHermit hardware-level detector (`window.StarHermitGpu`; copy of the canonical tools file, not edited here) |
-| `src/gfx-i18n.js` | Settings-tab and Graphics strings in the nine required locales, following the game language |
-| `src/i18n.js`, `src/locales/` | Localization core (`T`, `N`, `setLocale`, `onLanguage`, `applyMarkup` incl. `data-i18n-html`) and per-locale catalogues keyed by the US-English text |
-| `sh-language.js` | Shared StarHermit language preference (`window.StarHermitLanguage`), an unmodified copy of `tools/sh-language.js` |
-| `game-options.js` | Shared frame-rate / Language / Sound / Report-a-problem sections (mounted in the Graphics tab, `data-options-graphics`), an unmodified copy of `tools/game-options.js` |
-| `src/audio.js` | WebAudio buses, one-shot sample playback with procedural fallback, ambience loop |
-| `starhermit-sdk.js` | Shared StarHermit client (unmodified copy) |
-| `src/platform.js` | Adapter over the SDK: launch token, sign-in/invite, profile nickname, cloud-save mirror, settings KV, key bindings, high-score leaderboard posting and top 10; no own-server calls |
-| `src/sh-strings.js` | Account strings in the nine locales, following the game language |
-| `src/ui.js` | DOM controller: screen switching, focus restoration, live regions, HUD, settings form with General/Graphics tabs |
-| `src/util.js` | FNV-1a hash, mulberry32 PRNG, easing, clock/date formatting, `utcDay`, monotonic `now` |
-| `score-script.js` | StarHermit platform script (`server=`): range-checks a ranked round's total and posts it to the `high-score` board (canonical copy in the games repo's `tools/score-script.js`) |
-| `server.js` | Local dev server: static files + `/api/v1/time`, `/daily`, `/scores` (replay-validated), `/events` (not called by the client) |
-| `tests/rules.test.mjs` | 26 `node --test` cases over rules, content and determinism |
-| `tests/gfx.test.mjs` | 8 `node --test` cases over the graphics model and its locale table |
-| `tests/platform.test.mjs` | 5 `node --test` cases: the StarHermit adapter over the real SDK with a stubbed fetch (token, profile, `game:<slug>` cloud save, settings KV without shared `ui.*` keys, bindings, invite link, zero fetches standalone, UUID-host sign-in, a stale conditional write that reloads, merges and saves again) |
-| `tests/i18n.test.mjs`, `tests/i18n-keys.mjs` | Every UI key in all nine locales with matching placeholders and inline markup |
-| `tests/starhermit-e2e.mjs` | Stubbed StarHermit API for the signed-in e2e steps |
-| `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile |
-| `tests/smoke.mjs` | Headless full-board playthrough with replay verification, prints state hashes |
-| `sfx/` | 18 Opus one-shots plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` |
-| `assets/keyart.webp` | Title-screen key art |
-| `coverart.png` | 1200×675 store/launcher cover |
-| `vendor/three.module.min.js`, `vendor/three.core.min.js` | Three.js r185 (0.185.1), imported through the import map |
-| `vendor/addons/` | Same-revision three.js addons (`three/addons/`): EffectComposer, RenderPass, ShaderPass, OutputPass, GTAOPass, UnrealBloomPass, SMAAPass, FXAAShader, RoomEnvironment, RoundedBoxGeometry and their shader/math dependencies |
+| `src/session.js` | Phase state machine, progress under the `lt:*` keys (through an injectable storage), achievements, streaks, replay envelopes and `replayVerify` |
+| `src/store.js` | The save document: `normalize`, `mergeDocs` (two devices' merge), `readForeign` (the old cloud slot), `docStorage` (a localStorage-like view) |
+| `src/i18n.js`, `src/locales/` | Localization core (`T`, `N`, `setLocale`) and catalogues keyed by the US-English text |
+| `src/sh-strings.js` | Account strings in the nine locales |
+| `src/util.js` | FNV-1a hash, mulberry32 PRNG, clock/date formatting, `utcDay` |
+| `score-script.js` | StarHermit platform script (`server=`): range-checks a ranked round's total and posts it to the `high-score` board |
+| `index.html`, `starhermit-files.json` | The engine's web loader and file index, written by `npm run package` (never edited by hand) |
+| `assets/ui-style.json` | The UI styles, converted from `tools/ui-style.css` (`npm run css`) |
+| `assets/textures/` | Baked letter atlases (per theme and cell size, plain and detailed), wood and paper textures (`npm run textures`) |
+| `tests/rules.test.mjs`, `store.test.mjs`, `i18n.test.mjs` (+ `i18n-keys.mjs`) | `node --test` unit tests |
+| `tests/native.mjs`, `tests/native/*.play` | Engine checks and play scripts (§14) |
+| `tools/` | `package-web.mjs`, `css.mjs`, `bake-textures.mjs`, `gen-plays.mjs`, `board.mjs` (tile screen positions), `browser-play.mjs` (GPU Chrome check) |
+| `sfx/` | 18 Opus one-shots plus manifests |
+| `assets/keyart.webp`, `coverart.png`, `cover.jpg`, `icon.png` | Title key art, cover, icon |
 
 ---
 
@@ -65,12 +59,12 @@ a themed word off the board, and clear every word before the desk clock runs lon
 Tiles are boxes with thickness that lift 0.14 units when they enter a selection and settle back with
 an exponential ease. Rules in: shadows, a fixed three-quarter camera, a red thread-coloured marker
 line drawn on the desk under the trail. Rules out: flat CSS grids, tile spin/flip animations, any
-camera the player can orbit — the framing is authored once in `render.frameCamera` so a diagonal
+camera the player can orbit — the framing is authored once in `frameCamera` (native/render.ts) so a diagonal
 always reads as a straight line, never as perspective skew.
 
 **2. Every rule is a pure function of a seed.**
 `rules.js` imports nothing but `util.js`; board generation, legality, and scoring are total functions
-over an immutable snapshot. Rules in: shared daily boards, replay envelopes the server re-simulates,
+over an immutable snapshot. Rules in: shared daily boards, replay envelopes `replayVerify` re-simulates,
 hint and tutorial code paths that call the same `legalActions` the player's moves go through. Rules
 out: rules that read the clock or `Math.random` directly, and any board the server could not rebuild
 from `(seed, size, words)`.
@@ -78,7 +72,7 @@ from `(seed, size, words)`.
 **3. Keyboard play is a first-class input, not an accessibility bolt-on.**
 Arrows move a cursor, Enter anchors a line, Enter confirms it — the same command reaches the engine
 as a touch drag. Rules in: per-cell spoken announcements, a hint key, an escape that cancels before
-it pauses. Rules out: any action reachable only by dragging, which is why the e2e test can solve a
+it pauses. Rules out: any action reachable only by dragging, which is why the play scripts can solve a
 whole board with the keyboard alone.
 
 **4. Calm pressure.**
@@ -203,7 +197,7 @@ carry no score penalty.
 Every command the player issues is appended to a replay envelope with the FNV hash of the resulting
 state (`session.recordCommand`). `session.replayVerify` rebuilds the initial state from
 `(seed, size, words)`, rejects duplicate command ids, re-runs the log, and fails on the first hash
-mismatch. The local dev server's `/scores` route runs exactly that check; the platform `score-script.js` does not (it only range-checks).
+mismatch. The platform `score-script.js` does not run it (it only range-checks); `replayVerify` is exercised by the unit tests.
 
 ---
 
@@ -223,7 +217,7 @@ and carries a move limit of `wordCount + 4`. Level 1 is the tutorial level. Par 
 `wordCount + 3` moves and `60 s + size × wordCount × 8 s`.
 
 **Unlocking.** A level is playable if it is level 1, already completed, or the level before it is
-completed (`ui.renderJourneyGrid`). Progress lives in `lt:journey`.
+completed (the Journey screen in `native/screens.ts`). Progress lives in `lt:journey`.
 
 **Daily and streak.** `util.utcDay` rolls the day at **03:00 UTC** using UTC getters only, so the
 seed cannot drift with the client's timezone. Completing a daily calls `recordDailyCompletion`,
@@ -239,28 +233,35 @@ streak), Deep Ink (complete hard practice), Century of Words (100 words found li
 
 ## 6. Controls and interaction
 
-| Input | Desktop | Mobile | Response |
+Actions (`control.*` / `engine.gamepad.*` in `starhermit.txt`; players rebind keys and pads in the
+runtime's Options › Controls, or from Settings › Key bindings):
+
+| Action | Keys | Gamepad | Response |
 |---|---|---|---|
-| Start a trail | Press pointer on a tile | Touch a tile | Tile lifts and glows, marker line appears, `tick` sound |
-| Extend a trail | Drag | Drag | Preview snaps to the straight line from origin to the pointed cell; non-aligned targets collapse the preview to the origin cell |
-| Commit | Release | Lift | Word found (colour + `wordFound`) or rejected (`invalid`, 400 ms red-hot flash, then clear) |
-| Cancel | Release on the origin cell (tap) or `Escape` | Tap without dragging | Selection clears, "Selection cancelled." announced |
-| Move cursor | Arrow keys | — | Cursor steps, `uiMove` sound, cell letter + row/column announced |
-| Anchor / confirm line | `Enter` or `Space` | — | First press anchors (`select` sound), second commits |
-| Hint | `H` / Hint button | Hint in the tray | A whole word line highlights for 2.5 s, `hint` sound, start cell announced |
-| Reset camera | `C` / Reset Camera button | — | Re-frames the authored camera |
-| Pause | `Escape` (with no selection) / Pause button | Pause in the tray | Pause dialog; `Escape` again resumes |
-| Word list / status | Always-visible rails | Words / Status tray buttons | Slide-in drawers, mutually exclusive |
+| `up` / `down` / `left` / `right` | Arrows | D-pad, left stick | Cursor steps, `uiMove` sound, cell letter + row/column announced; with a line anchored, the preview follows |
+| `select` | Enter, Space | South (A) | First press anchors the line (`select` sound), second commits |
+| `back` | Escape | East (B), Start | Cancels a selection; else pauses; in the pause menu resumes; closes How to Play / Settings |
+| `hint` | H | North (Y) | A whole word line highlights for 2.5 s, `hint` sound, start cell announced |
+| `camera` | C | West (X) | Re-frames the authored camera |
 
-**Input locking.** Pointer and keyboard handlers return immediately unless `sess.phase === 'active'`,
-so no board input reaches the engine while a menu, tutorial card or pause dialog is up. The canvas
-uses pointer capture; `pointercancel` and `lostpointercapture` clear the selection rather than
-committing a partial trail. Typing into settings inputs never reaches the game keymap. Backgrounding
-the tab pauses an active round and suspends the audio context.
+**Pointer and touch.** Press on a tile (mouse or finger) to start a trail (`tick` sound, the tile
+lifts and glows); drag to extend it — the preview snaps to the straight line from the origin to the
+tile under the pointer, non-aligned targets collapse it to the origin cell; release to commit (word
+found: colour + `wordFound`; rejected: `invalid`, a 400 ms flash, then clear). A release under
+12 logical px and 350 ms from the press with one cell selected is a cancel, not a one-letter
+selection (the rules would reject it as `too-few-cells`, costing the clean bonus); a cancelled touch
+cancels the trail. Presses are decided after the frame's UI is built: presses on the rails, the
+tray, a drawer or its scrim belong to the UI.
 
-**Tap threshold.** A release under 12 px and 350 ms from the press, with only one cell selected, is
-treated as a cancel, not a one-letter selection — the engine would reject it as `too-few-cells`
-anyway, and that would cost the clean bonus.
+**Buttons.** Every button takes the pointer, touch, Tab + Enter and the pad (the runtime's focus).
+Wide layouts show Pause, Hint (H) and Reset Camera (C) in the status rail; compact layouts show
+Words, Hint, Pause and Status in the bottom tray. After a HUD button the focus is let go, so the
+arrows and Enter return to the board (from host API 1.20 they stay the game's while no widget has
+focus).
+
+**Input locking.** Board input acts only while a round is active (not in the tutorial, pause or
+results); the round's actions ignore a key the runtime's text capture holds. A hidden window (the
+runtime's `onSuspend`) pauses an active round. F1 belongs to the runtime (Options).
 
 ---
 
@@ -278,32 +279,39 @@ boot → title → mode-select → preparing → [tutorial] → countdown → ac
 `results` can go back to `mode-select` or straight to `preparing` (Retry / Next Level); `paused`
 can leave to `mode-select`. An illegal transition throws rather than silently corrupting state.
 
-Ten DOM screens (`#screen-title`, `mode`, `journey`, `practice`, `challenge`, `pause`, `settings`,
-`results`, `help`, `tutorial`) plus the HUD. `ui.showScreen` shows exactly one, moves focus to its
-first button without scrolling (each screen opens at its top), and restores the previously focused element when it closes.
+Screens (`native/screens.ts`, immediate mode, built every frame): **Title** (key art under a scrim;
+Play, Daily Challenge, Journey, Practice, Challenge, How to Play, Settings, Sign in with StarHermit
+when signed out, Invite a friend when signed in; the player line with sync status), **mode setup**
+(label, description, the board's facts as a term/value list, Start / Back), **Journey** (40 level
+buttons in an auto-filling grid, ★ on mastery levels, done levels in the accent colour, locked ones
+disabled; each button's accessible name says "Level n, completed / locked"), **Practice** (Easy /
+Medium / Hard), **Challenge** (three constrained boards), **How to Play** (four rule cards with the
+effective keys, plus pads and touch), **Settings** (Open Options and Key bindings into the runtime's
+Options, Replay Tutorial, Done), the **tutorial** cards over a lighter wash, the **pause** menu
+(Resume, Settings, Help, Leave Round) and the **results** (score breakdown, time, invalid
+selections, new best, the challenge constraint, achievements, the leaderboard line and top ten;
+Retry, Next Level / Play Again, Menu). Each screen opens at its top and focuses its primary
+button; menus and dialogs are centred panels at most 560 px (92 % of the width on phones) that
+scroll inside when taller than 85 % of the window.
 
-**Layout.** `#app` is a three-column grid — 240 px word rail, canvas, 240 px status rail — with a
-bottom tray row. At ≤1023 px the grid collapses to one column, both rails become fixed 80vw-max
-drawers that slide in from the sides, and the tray becomes the visible action bar (Words, Hint,
-Pause, Status); each drawer has a ✕ close button. Panels are `min(92vw, 560px)` wide and scroll internally at `max-height: 85vh`, so
-no dialog is ever taller than the viewport.
-Above 1600×1000, `ui-scale.js` sets `--ui-scale` (`min(w/1600, h/1000)`, max 2.5) and `#app`, the
-toast and the FPS meter zoom by it, so rails, panels and the tray keep their 1600×1000 proportions;
-the full-viewport canvas is not zoomed, and vw/vh lengths inside the UI are divided by the scale.
+**Layout.** Picked by the window's logical size (safe area excluded). **Wide** (≥ 1024 px): the
+objective and word list in a 220 px rail on the left, the status (score, time, challenge limits)
+and its buttons in a rail on the right, both full height and scrolling inside when needed; the
+polite announcement line at the bottom centre. **Compact** (< 1024 px, phones in either
+orientation, small windows): the tray (Words, Hint, Pause, Status; buttons up to 140 px wide) along
+the bottom; Words and Status open drawers (up to 80 % of the width, 320 px) over the board above the
+tray, each with a ✕ close button, and a scrim whose tap closes them; the announcement line sits in a
+dark box above the tray; the camera frames the board in the height the tray leaves. Larger text
+(the runtime's interface size) scales everything; panels wrap and scroll rather than clip.
 
-**Safe areas.** `env(safe-area-inset-*)` is read into `--sat/--sab/--sal/--sar` and applied to every
-screen's padding, both rails' margins and the tray. Nothing interactive sits under a notch, a home
-indicator or browser chrome. Must never be cut off: the word list, the score/time readout, the tray
-buttons, and every panel's action row.
-
-**Failure screen.** With no WebGL context, `#compat` takes over with an explanation that local
-progress is preserved, and boot stops before any 3D work.
+**Safe areas.** Placed UI sits inside the runtime's safe area; the tray's backdrop extends under the
+bottom inset.
 
 ---
 
 ## 8. Art direction
 
-**Palette.** DOM shell (`index.html`): paper `#f3ead7`, ink `#2b2b2f`, accent `#b3543f`, desk
+**Palette.** UI (`tools/ui-style.css`): paper `#f3ead7`, ink `#2b2b2f`, accent `#b3543f`, desk
 `#6b4f3a`, tile `#e8dcc0`, focus ring `#1a5fb4`. High contrast swaps to paper `#ffffff`, ink
 `#000000`, accent `#0044cc`, tile `#ffffff`, focus `#ff8000`.
 
@@ -322,16 +330,16 @@ found / marker:
 border, tiles as 0.86 × 0.18 × 0.86 boxes (rounded at detailed quality) on a 1.0 pitch, resting on a paper sheet. Decorative pencil cylinders are scattered
 deterministically from the board seed outside the play area and are never raycast.
 
-**Typography.** Georgia / Times New Roman serif for the whole shell; tile letters are drawn once
-into a 1024 × 512 canvas atlas at `bold 84px Georgia` (2048 × 1024 at `bold 169px` with detail on) and sampled per tile with UV offsets, so 81
-tiles cost one texture. Word-list entries are bold with `0.12em` letter-spacing; found entries get
-strikethrough, 55 % opacity and a ✓.
+**Typography.** The UI draws in the generic serif face (the browser build's Georgia); tile letters
+are a baked 8 × 4 atlas (bold Georgia at 0.66 of the cell, cells of 128–384 px by tier) sampled per
+tile through its top-face UVs, so 81 tiles cost one texture. Word-list entries are bold with
+1.92 px letter-spacing; found entries get a strikethrough, 55 % ink and a ✓.
 
 **Motion.** Tile lift eases with `1 − e^(−12·dt)`; the selection ribbon is redrawn, never tweened;
-drawers slide in 0.25 s. Reduced motion sets that factor to 1, so lifts snap instantly — state is
+drawers open at once. Reduced motion sets that factor to 1, so lifts snap instantly — state is
 always readable without animation, and no information is carried by motion alone.
 
-**The hero** of the screen is the board: the DOM is deliberately quiet — muted paper rails, no
+**The hero** of the screen is the board: the UI is deliberately quiet — muted paper rails, no
 gradients, no shadows besides the panel drop shadow — so the lit tiles are the only thing with depth.
 
 **Visual assets the design calls for**: title key art of the physical fantasy (a real desk, blank
@@ -345,70 +353,35 @@ starts about one board span behind the board, measured from the camera, so tiles
 any aspect ratio.
 
 **Graphics.** The tiles rest on a paper sheet laid on a desk in the theme's desk colour; the
-background is the same colour, darkened. With **detail** on, tiles are rounded boxes (clear-coated physical
-material on High/Ultra), the letter atlas gets paper grain, a soft edge
-falloff and a letterpress highlight under each glyph (ink colour unchanged), the desk gets a seamless
-procedural wood grain, the paper a fibre texture, and pencils gain a sharpened wood tip and lead.
-**Reflections** add a PMREM-filtered `RoomEnvironment` as each lit material's `envMap`, with
-per-material strength. The selection preview is a soft glowing ribbon on the paper under the
-selected line, showing in the gaps between tiles. **Particles** add dust motes drifting over the board
-and a sparkle burst from the tiles of each found word; both stop under reduced motion (the setting or
-`prefers-reduced-motion`). Post-processing (EffectComposer, only built when an effect needs it):
-RenderPass → GTAO ambient occlusion → UnrealBloom (threshold 1.0, so only the HDR trail, sparkles
-and bright highlights bloom) → OutputPass → colour grade (gentle S-curve, +7 % saturation, warm
-highlights / cool shadows, vignette) → SMAA or FXAA; MSAA uses the canvas, or a 4× multisampled
-target when the composer runs. The Settings panel has **General** and **Graphics** tabs. Graphics
-offers Quality (Auto, chosen from the StarHermit hardware level below; Low; Balanced; High; Ultra), a render scale of 50–200 %, one select per effect
-(shadows off/1024²/2048²/4096², ambient occlusion off/on/high, bloom, colour grade, anti-aliasing
-FXAA/SMAA/MSAA, reflections, surface detail plain/detailed, particles off/low/high), each defaulting
-to "From preset (…)", adaptive resolution (averages ~90 frames; above 26 ms steps the scale down by
-0.1 to 0.6, below 14 ms back up by 0.05), a frame-rate readout (top centre, never over controls) and
-a summary line "GPU · Level N · cost · W×H px" (the level label localized). Picking a preset clears the overrides. Pixel ratio is
-min(devicePixelRatio, preset cap: Low 1, Balanced 1.5, High/Ultra 2) × preset scale (Ultra 1.25) ×
-render scale × adaptive scale. Changes apply live — shadow maps, materials, the post chain and, for
-detail or particle changes, a rebuild of the current board that keeps found words — and persist in
-`lt:settings.graphics` (legacy `quality` values migrate to a preset). If the post chain cannot be
-built or throws, the board renders without it and the Graphics tab says so. The current preset is
-exposed as `data-gfx-preset` on `<body>` and the canvas. Low draws exactly the plain scene with no
-composer, as cheap as the game was before the upgrade.
+background is the same colour, darkened. With **detail** on, tiles are rounded boxes (clear-coated
+physical material on High/Ultra), the letter atlas has paper grain, a soft edge falloff and a
+letterpress highlight under each glyph, the desk has wood grain, the paper a fibre texture, and
+pencils gain a sharpened wood tip and lead. The atlases, wood and paper are baked images
+(`tools/bake-textures.mjs` runs the browser build's canvas painters in Chrome) for the three board
+themes the content uses (classic, ocean, forest); each tile shows its letter through its own
+top-face UVs into the atlas. **Reflections** give each lit material a PMREM-filtered
+`RoomEnvironment(renderer)` as its `envMap`, with per-material strength. The selection preview is a
+soft glowing ribbon on the paper under the selected line. **Particles** add dust motes over the
+board and a sparkle burst from each found word; both stop under the runtime's reduced motion. Post
+effects are the renderer's: ambient occlusion, bloom (threshold 1.0: only the trail, sparkles and
+bright highlights), a display-space colour grade (gentle S-curve, +7 % saturation, warm highlights /
+cool shadows, 0.2 vignette) and FXAA / SMAA / MSAA.
 
-**Hardware level and Auto.** `src/gpu-level.js` (the shared StarHermit detector, `window.StarHermitGpu`,
-loaded as a classic script before `src/main.js`) rates the GPU 0–20 (0 = Galaxy S20 / Intel UHD or
-weaker, 20 = RTX 5090, each level ≈ 1.23× the one below; laptop parts two levels lower; phones,
-tablets and ≤ 4 GB machines capped at 9; software renderers 0). Auto picks **Low from 0, Balanced from
-4, High from 10, Ultra from 17**, so strong desktop GPUs get Ultra; adaptive resolution still steps
-down when frames are slow. On phones and tablets the shared frame-rate option paces Auto at half the
-display refresh rate and starts at 16 simultaneous sounds.
+**Graphics levels.** The runtime's Options › Graphics chooses the level (Auto by default, from the
+device); its quality tier selects the look below and the level scales the sparkles within the tier
+(≤ 2×). The runtime owns render scale, the pixel-ratio cap, adaptive resolution, the frame-rate
+limit and readout and the shadow-map cap. The board (keeping found words) is rebuilt when the
+tier's budget changes.
 
-**Per-preset budgets** (`BUDGETS` in `src/gfx.js`; each tuned to hold 60 FPS on the weakest GPU Auto
-gives it — Low: level 0 phones / Intel UHD, Balanced: level 4 Iris Xe, High: level 10 GTX 1070, Ultra:
-level 17 RTX 4080). Gameplay is identical on every preset.
-
-| Preset | Materials (tiles, desk, paper, pencils) | Letter atlas cell | Desk / paper texture | Rounded-tile bevel segments | Sparkles (× per word and pool) | Dust motes | Bloom / GTAO resolution |
-|---|---|---|---|---|---|---|---|
-| Low | Lambert | 128 px | 256 px | 1 | 0.5× | 0.5× | ½ / ½ |
-| Balanced | Standard | 192 px | 512 px | 2 | 0.75× | 0.75× | ½ / ½ |
-| High | Physical (clearcoat tiles) with detail | 256 px | 512 px | 3 | 1× | 1× | ½ / ½ |
-| Ultra | Physical (clearcoat tiles) with detail | 384 px | 1024 px | 4 (12-sided pencils) | 1.5× | 1.5× | full / full |
+| Tier | Shadows | AO | Bloom / grade | AA | Reflections | Detail | Particles | Materials | Atlas cell | Wood / paper | Bevel segments | Sparkles / motes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Low | off | off | off | MSAA | off | plain | off | Lambert | 128 px | — | — | — |
+| Balanced | 1024² | off | on | FXAA | on | detailed | low | Standard | 192 px | 512 px | 2 | 0.75× / 0.75× |
+| High | 2048² | on | on | SMAA | on | detailed | high | Physical | 256 px | 512 px | 3 | 1× / 1× |
+| Ultra | 4096² | high | on | MSAA | on | detailed | high | Physical | 384 px | 1024 px | 4 (12-sided pencils) | 1.5× / 1.5× |
 
 Every tile draws in two groups (all side faces with the shared edge material, the top face with its
-letter material) rather than the box's six. Sparkles scale within the preset by the hardware level
-(`StarHermitGpu.scaleBudget`, ≤ 2×; fewer below the floor). The board (keeping found words) is
-rebuilt when the preset's budget changes. Bloom and GTAO run at a fraction of the frame through a
-wrapped pass `setSize`.
-
-**60 FPS benchmark** (`node tools/gfx-bench.mjs letter-trails [--mobile --presets low,balanced]`,
-dev-only, real GPUs; hook `tests/gfx-bench.mjs` picks the preset in Settings → Graphics, starts
-Journey level 1 and keeps solving its words with arrow keys + Enter, retrying a finished board).
-Measured 2026-10-17 (an AMD Radeon iGPU at level 2 projected to each preset's floor level, the same
-page with draws skipped subtracted; typical p50 ≤ 12 ms and slow p90 ≤ 14 ms, CPU p90 ≤ 6 ms on the
-NVIDIA run):
-
-- Desktop 1920×1080: PASS low (typical 0.00, slow 1.92 ms at level 0; CPU 1.10 ms); PASS balanced
-  (typical 5.48, slow 6.17 ms at level 4; CPU 1.00 ms); PASS high (typical 1.86, slow 2.45 ms at
-  level 10; CPU 1.90 ms); PASS ultra (typical 4.28, slow 4.60 ms at level 17; CPU 2.00 ms).
-- Mobile 390×844 @3×: PASS low (typical 0.00, slow 1.00 ms at level 0; CPU 0.50 ms); PASS balanced
-  (typical 0.00, slow 0.00 ms at level 4; CPU 0.90 ms).
+letter material).
 
 ---
 
@@ -417,18 +390,18 @@ NVIDIA run):
 **Mix philosophy.** Wooden, dry, close-mic'd — a quiet room with tiles on paper. Nothing sustains
 long enough to mask the next action; a fast drag must be able to tick every 60 ms without smearing.
 
-**Buses** (`src/audio.js`): `master → {music, effects, ambience, voice}`, defaults 0.6 / 0.8 / 0.4 /
-0.7, three of them exposed as sliders. The context is created only on the first user gesture
-(`unlock`), and suspends on tab hide.
+**Buses** (`native/audio.ts`): the runtime's `effects` (game events), `interface` (the back
+click) and `music` (the ambience); its Options own the volumes, mute and voice limit.
 
-**Music and ambience.** There is no music track. Ambience is a synthesized 2 s looped noise buffer
-through a 320 Hz lowpass with an 0.11 Hz LFO on its gain, started when a round becomes active and
-stopped at completion or when leaving.
+**Music and ambience.** There is no music track. Ambience is lowpassed noise (320 Hz) whose level an
+0.11 Hz LFO swells by ±0.02 around 0.05, rendered once into one seamless LFO cycle (a clip made a
+slice per frame) and looped on the music bus at 40 % while a round is active; it stops on pause,
+completion and leaving.
 
-**Sample playback.** Each event maps to a rotation of Opus one-shots, fetched and decoded lazily
-after unlock, deduped per file and retried on a later event if a fetch fails. Until a buffer is
-ready the procedural fallback plays — one path or the other, never both — so a cold or offline start
-is still fully audible. Samples route through `effectsBus`, so mute and volume apply to them.
+**Sample playback.** Each event maps to a rotation of Opus one-shots, loaded one at a time once the
+mixer runs (natively at once, in browsers after the first press); a clip still loading is silent
+(the browser build's procedural stand-ins are not ported: a live synthesis graph makes clip loads
+fail on the web runtime).
 
 ### SFX event table
 
@@ -446,7 +419,7 @@ This table is the source for `sfx/manifest.txt`.
 | `achievement` | `achievement-1.opus` | Wooden stamp into a bright chime | One or more achievements unlock at round end |
 | `uiBack` | `ui-back-1.opus` | Soft downward wooden knock | Closing help, returning to title, leaving a round |
 
-Haptics are a stored setting (`haptics: true`) and are not yet driven (§17).
+Haptics are not driven (§17).
 
 ---
 
@@ -454,246 +427,165 @@ Haptics are a stored setting (`haptics: true`) and are not yet driven (§17).
 
 The product requirement is en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR, it-IT.
 
-Every player-visible string is localized. Static copy in `index.html` carries `data-i18n` /
-`data-i18n-aria` (the Help cards with inline `<kbd>` use `data-i18n-html`, keyed by their authored
-markup); code calls `T('<US-English text>', vars)` from `src/i18n.js`. Catalogues in `src/locales/`
-are keyed by the US-English text (en-US is the identity, en-GB lists spelling changes, es-ES and
-fr-CA list their differences from es-419 and fr-FR). Lessons, challenge and practice labels,
-achievements and word-bank theme names translate at display time; screen titles built in
-`main.js` are `[key, vars]` pairs. The Settings tab names and Graphics tab come from
-`src/gfx-i18n.js` for the same language.
+Every player-visible string is drawn through `T('<US-English text>', vars)` (`native/i18n.ts` over
+`src/i18n.js`) each frame, in the locale nearest the runtime's interface language
+(`preferences().language`: the player's choice in Options › Language, else the account's preferred
+language or the device's); a change shows on the next frame and never touches the round.
+Catalogues in `src/locales/` are keyed by the US-English text (en-US is the identity, en-GB lists
+spelling changes, es-ES and fr-CA list their differences from es-419 and fr-FR). Lessons, challenge
+and practice labels, achievements and theme names translate at display time; screen titles are
+`[key, vars]` pairs. The How to Play cards keep their authored `<strong>` / `<kbd>` markup as keys:
+the lead-in draws bold and each `<kbd data-key>` shows the action's effective keys. Account strings
+(sign in, invite, toasts, "Playing as", the leaderboard line) come from `src/sh-strings.js`.
 
-- Settings → Graphics tab → **Language → Game language** (rendered by `game-options.js` from the
-  `sh-language.js` instance) offers **Automatic — <resolved language>** plus the nine locales by
-  native name and a status line (Saved to account / Saved on this device / Account sync
-  unavailable); reachable from the title and from the pause menu.
-- A change applies immediately: markup is re-applied, `<html lang>` updates, key hints are redrawn,
-  and `ui.relocalize()` re-renders the Graphics labels, objective, progress, limit line, and the
-  open mode setup, results, tutorial, journey grid or challenge list, plus the profile line and the
-  results leaderboard line. The round and its found words are untouched.
-- Resolution (`sh-language.js`): explicit game choice → for Automatic, the StarHermit account's
-  `preferredLanguage` (`GET /api/v1/me/language`, signed in only) → `navigator.languages` → en-US.
-  The choice is stored per player in `localStorage['letter-trails.language.<user|guest>']` and,
-  signed in, in the per-player settings key `ui.language` as `{ choice }`; the game's settings
-  mirror ignores `ui.*` keys. `?lang=` forces a locale for the page load (QA).
-
-**Constraints the current UI already respects**, so a string table can land without relayout:
-panels wrap and scroll rather than clipping, buttons size to content with a 44 px floor, and the
-`larger-text` setting proves the layout survives a 120 % type ramp — enough headroom for the ~35 %
-expansion German and French Canadian typically bring. Word banks are English words and are content,
-not UI copy: a localized build needs per-language banks, not translations of the existing ones,
-because the letters on the board *are* the puzzle.
+Word banks are English words and are content, not UI copy: the letters on the board *are* the
+puzzle, so every locale plays the same English boards with translated theme names (§17).
 
 ---
 
 ## 11. Accessibility
 
-* **Keyboard-only path.** Every screen is reachable and every action performable from the keyboard,
-  including a complete board solve (arrows + Enter). `tests/e2e.mjs` solves both its passes this way.
-* **Focus.** `ui.showScreen` focuses a panel's primary button on open and restores the previous
-  element on close. Focus rings are 3 px at 2 px offset in `--focus`, which changes to orange under
-  high contrast.
-* **Screen reader.** `#live` (polite, also visible on screen as a status line) carries cursor
-  position, finds, progress, pause/resume and hint text; `#live-assertive` (`role="alert"`,
-  visually hidden) carries rejections and the final score. `#board-desc` describes board size, word
-  count and how to move. The canvas is `aria-hidden` — it never holds information the DOM lacks.
-* **Contrast.** Ink on paper is roughly 13:1; the High contrast setting takes it to black on white
-  with a blue accent. Found words are marked by strikethrough and ✓ as well as by colour, and two
-  colour-vision palettes are exposed as a setting (§17).
-* **Reduced motion.** A setting (or `prefers-reduced-motion`), applied to tile easing; it also stops
-  dust motes and word sparkles.
-* **Larger text.** 120 % body scale, applied as a body class.
-* **Target sizes.** Every button is at least 44 × 44 px, including range inputs and selects.
-* **Left-handed** mode is a stored setting and a body class (§17).
+* **Keyboard and pad path.** Every screen and every action, including a complete board solve
+  (arrows + Enter, or the D-pad + A), works without a pointer; the play scripts solve whole boards
+  this way.
+* **Focus.** Each screen focuses its primary button when it opens; focus rings are 3 px at 2 px
+  offset in the focus colour (orange under high contrast).
+* **Screen reader.** The runtime's UI reaches screen readers. Polite announcements (cursor position,
+  finds, progress, pause/resume, hints, the board's size and word count at the start) also show for
+  5 s as the announcement line; rejections and the final score are assertive and not shown.
+  Journey level buttons carry "Level n (mastery), completed / locked" names; the drawers' close
+  buttons and scrim are named "Close word list" / "Close status".
+* **Contrast.** Ink on paper is roughly 13:1; the runtime's high contrast option switches the UI to
+  black on white with a blue accent and an orange focus ring. Found words are marked by
+  strikethrough and ✓ as well as by colour.
+* **Reduced motion.** The runtime's option snaps tile lifts and stops dust motes and sparkles.
+* **Larger text.** The runtime's interface size scales the whole UI; panels and rails scroll.
+* **Target sizes.** Every button is at least 44 × 44 logical px.
 
 ---
 
 ## 12. StarHermit integration
 
-`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=score-script.js`,
-`cover=coverart.png`, per https://wiki.starhermit.com/ conventions.
+`starhermit.txt` declares `name`, `description`, `owner`, `server=score-script.js`, `cover=cover.jpg`,
+`launch=index.html` (the engine's web loader), `engine.entry=native/main.ts`,
+`engine.version=1.18.0`, `engine.minor=20`, `engine.capabilities=platform,storage,clipboard`, and the
+`control.*` / `engine.gamepad.*` defaults of §6.
 
-`starhermit.txt` also lists one `control.<action>=<Code>[+<Code>] | <Label>` line per keyboard
-action (up, down, left, right, select, back, hint, camera).
+* **Player** — signed in, the title shows "Playing as <display name> · <sync status>"; a guest sees
+  "Playing as Guest (local guest)" and **Sign in with StarHermit** (`requestSignIn`). When the
+  session ends the game toasts "signed out" and keeps playing and saving on the device.
+* **Save** — the engine save is the browser build's `lt:*` document (§13), on the device at once and
+  in the account's cloud slot (debounced by the runtime). **Old cloud saves**: the slot the browser
+  build wrote (`game:<slug>`, the JS SDK's JSON) shows as foreign; it is merged with the device's
+  document (`mergeDocs`) and replaced once (`replaceForeign`). **Conflicts** between devices merge
+  the same way: union of completed journey levels, achievements with the earliest unlock, the larger
+  word total, the best score per mode, the more recent daily streak, this device's settings and
+  guest profile. Guests' old browser `localStorage` progress cannot migrate (a different store).
+* **Legacy settings** — the browser build's account settings keys (volumes, reduced motion,
+  contrast, colour vision, larger text, left-handed, hold-to-confirm, haptics, graphics,
+  `tutorialDone`, `ui.language`) are the runtime's Options now and are removed; a finished tutorial
+  carries over into the save.
+* **Leaderboard** — every finished ranked round (Play, Journey, Daily) signed in posts its total
+  through `score-script.js` (a practice session carrying `{ type: 'result', scores }`; the script
+  range-checks it into the `high-score` board, integer, higher is better, 0–100,000). The results
+  then show "Leaderboard rank: #N" (or posted / not posted) and the board's top ten with display
+  names. Practice and Challenge post nothing; personal bests stay in the save. Results are
+  server-authoritative in the sense of the platform policy: the client only offers a total, the
+  script decides what is recorded.
+* **Daily** — the day comes from the platform clock (`serverNow()`), falling back to the device's
+  UTC clock offline.
+* **Invite** — signed in, **Invite a friend** copies the invite link (clipboard) with a toast.
+* **Options** — sound, graphics, language, controls, accessibility and problem reports are the
+  runtime's Options (Settings › Open Options, or F1).
 
-All platform calls go through the shared client `starhermit-sdk.js` (loaded before the game
-modules) via `src/platform.js`. Without a launch token the game makes no platform calls.
-
-**Used (on-platform).**
-
-* **Launch token + renewal** — `StarHermit.init()` reads `#game_token=` (library launch) or
-  `#access_token=` (sign-in return) once, strips it, keeps it in memory only and renews it
-  before expiry. If renewal is refused the game toasts "signed out", hides the invite button
-  and keeps playing and saving locally.
-* **Sign-in** — on `<id>.starhermit.com` without a token the title shows **Sign in with
-  StarHermit**; hidden when signed in and when running locally.
-* **Profile** — the profile `nickname` (fallback `Player <id prefix>`; usernames never shown)
-  renders in the title-screen profile line with the cloud sync status.
-* **Cloud save** — the six `lt:*` game keys are mirrored to the `game:<slug>` cloud-save slot.
-  The remote wins on load; local changes are written back (~2 s debounce, keepalive flush on
-  `pagehide`/hidden tab). localStorage stays the offline cache.
-* **Settings KV** — every preference (volumes, graphics, reduced motion, contrast, colour
-  vision, larger text, left-handed, hold-to-confirm, haptics, tutorial flag) is patched to the
-  per-player settings store when it changes (changed keys only); at boot the stored values
-  override the local ones.
-* **Controls** — keyboard input is routed by `event.code` through `StarHermit.loadBindings()`
-  (defaults = the manifest `control.*` lines); the Help "Keyboard" card shows the effective keys.
-* **Invite link** — signed-in players get **Invite a friend** on the title, copying
-  `StarHermit.inviteLink()` with a confirmation toast.
-* **Leaderboard** — every finished ranked round (Play, Journey, Daily) posts its total through
-  `StarHermit.submitScores` (a practice session whose `score-script.js` posts it to the
-  `high-score` board: integer, higher is better, 0–100,000). The results screen then shows
-  "Leaderboard rank: #N" (or posted / not posted) and the board's top 10 (names via profiles).
-  Practice and Challenge rounds post nothing; personal bests also stay local (and cloud-mirrored).
-
-* **Save conflicts** — after the boot load, cloud writes are conditional (SDK ETag). When another
-  device saved first the SDK emits `saveconflict`; `platform.resolveConflict()` reloads the slot and
-  merges it with the local keys (`mergeCloudDocs`: union of completed journey levels, achievements
-  with the earliest unlock time, the larger word total, the best score per mode, the more recent
-  daily streak, this device's settings and guest profile), applies it, and saves it again.
-* **Report a problem** — Settings (signed in only, from `game-options.js`) files a bug report
-  through `StarHermit.reportBug`; uncaught errors are filed as crash reports through
-  `StarHermit.captureCrashes` (SDK-capped).
-
-Account strings (sign-in, invite, toasts, "Playing as", the results leaderboard line) are localized in the nine locales
-(`src/sh-strings.js`) and follow the game language.
-
-**Standalone (no launch token).** The client makes no request to any `/api` or `/ws` route:
-the device clock sets the daily boundary, bests stay local, no score submission and no
-telemetry. `server.js` (local dev server only) still implements time, scores and events routes,
-but the client never calls them.
-
-**Not used.** Platform sessions, presence, matchmaking, friend-picker invites, chat,
-replays, realtime sessions and social feeds: Letter Trails is single-player with a shared seed, so a daily
-leaderboard is the whole social surface. Achievements stay local (part of the
-cloud-saved doc); `score-script.js` only posts scores, so there is no script-owned unlock path.
+**Not used.** Rooms, matchmaking, chat, replays and platform achievements: Letter Trails is
+single-player with a shared daily seed. Achievements stay in the save.
 
 ---
 
 ## 13. Technical architecture
 
-**Dependency direction.** `rules` → `util` only. `content` → `rules`, `util`. `session` → `rules`,
-`content`, `util`. `render` → `three`, `content` (palettes), `util`. `main` imports everything and
-is the only module allowed to. No module reaches into the DOM except `ui`, `render` and `main`.
+**Modules.** The pure game modules (`src/rules.js`, `content.js`, `session.js`, `store.js`,
+`util.js`, `i18n.js`) are ES modules the engine imports directly (`allowJs`) and node tests import
+unchanged; `native/*.ts` is the client. `rules` → `util` only; `content` → `rules`, `util`;
+`session` → `rules`, `content`, `util`.
 
-**Determinism.** State snapshots are cloned on every command, hashed with FNV-1a over a canonical
-JSON projection with fixed key order. Identical seeds plus identical commands produce identical
-hashes across processes — asserted by `tests/rules.test.mjs` and re-verified by the server.
+**Determinism.** State snapshots are cloned on every command and hashed with FNV-1a over a
+canonical JSON projection. The round clock advances 1/60 s per runtime fixed step while the round is
+active and is folded into the command log as `tick` commands in 5 s chunks (and on pause), so pauses,
+a hidden window and slow frames never cost time, and play scripts replay exactly.
 
-**Persistence.** Six `localStorage` keys, all namespaced `lt:` — `settings`, `journey`,
-`achievements`, `best`, `streak`, `guest`. Every read and write is
-wrapped: with storage unavailable the session runs normally and simply forgets. On a platform
-launch these keys are also mirrored to the cloud-save slot (remote wins on load, §12).
+**Persistence.** `session.js` reads and writes its six `lt:` keys (`settings`, `journey`,
+`achievements`, `best`, `streak`, `guest`) through an injected localStorage-like view of the save
+document (`store.docStorage`); `native/platform.ts` saves the document at the end of any frame that
+changed it. States carry `version` and go through `MIGRATIONS` on load.
 
-**Save migration.** States carry `version` and go through `MIGRATIONS` on load; a newer-than-supported
-version is rejected loudly rather than half-read.
-
-**Performance budgets.** One draw-call-cheap scene: `size²` tile meshes sharing one two-group geometry and
-one edge material, one canvas atlas texture, two lights, one ribbon, and at most two point clouds. Graphics
-presets cap pixel ratio at 1 / 1.5 / 2 / 2 and choose shadows and post effects (§8); Auto picks from the
-hardware level, per-preset budgets size textures, LOD and particles, and adaptive resolution protects the frame rate. Board rebuilds dispose the previous desk, paper,
-pencils and particles as well as the tiles, so nothing accumulates across rounds.
-The render loop allocates nothing per frame (scratch vectors are module-level) and clamps `dt` to
-0.1 s. Board rebuilds fully dispose geometries, materials and textures. Rendering is skipped
-entirely while the tab is hidden. The clock is folded into the command log in ~5 s chunks, so a
-five-minute round adds about 60 commands to an envelope, not thousands.
-
-**How the e2e test drives the real UI.** `tests/e2e.mjs` serves the repo on an ephemeral port (no `/api`
-stand-ins; it fails on any same-origin `/api` or `/ws` request), launches system Chrome through `playwright-core`, and clicks the actual
-buttons: settings toggle, help, Play, mode start, tutorial next/skip, then solves the board with
-real arrow/Enter key presses, then exercises hint, pause, pause-settings, resume and leave on a
-second round. The Graphics tab is driven the same way: Auto must resolve to Low under SwiftShader with the summary naming Level 0,
-Low then High are selected, the shadows override and frame-rate toggle are set, and all of it must
-survive a page reload; picking a preset must clear the override, and Ultra runs in-game before
-returning to Auto. It reads word coordinates by importing `src/rules.js` inside the page purely to aim
-key presses; no game function is called to make progress. Any `pageerror` or non-GPU-noise console
-error or warning fails the run.
+**Performance.** `size²` tile meshes sharing per-letter copies of one two-group geometry and one
+edge material, one atlas texture, two lights, one ribbon and at most two point clouds. Board
+rebuilds dispose the previous desk, paper, pencils, particles and tiles. Per-pixel canvas work is
+baked offline; the only runtime canvases are the 64 px soft dot and the 256 × 64 ribbon.
 
 ---
 
 ## 14. Testing and acceptance criteria
 
-**`npm test`** (`node --test`, 52 cases incl. platform and i18n coverage) runs `tests/gfx.test.mjs` — the hardware level →
-preset mapping (SwiftShader / llvmpipe / `Radeon Graphics` / UHD → Low, Iris Xe → Balanced, GTX 1070 →
-High, RTX 4080 / 5090 → Ultra, phones and tablets Balanced at most), the per-preset budget table and its
-level scaling, `resolve` with presets, overrides and render-scale clamping, preset choice clearing
-overrides, the cost summary, and complete Graphics strings in all nine locales — and
-`tests/rules.test.mjs`, which verifies: deterministic generation
-that places every word; `legalActions` yields exactly the unfound words; every rejection reason
-(non-straight, out-of-bounds, too-few, bad cells, no match, already found, not active, bad tick, bad
-streak); reversed words match; scoring components and the total; the terminal transition and its
-reason; serialize/deserialize hash round-trip; version-0 migration; rejection of garbage and future
-versions; identical hashes across runs; different seeds giving different boards;
-`content.validateContent()` clean across all 40 journey levels, seven simulated dailies and all
-challenges; the content shape (5 themes, 6 banks of ≥12 words, ≥40 levels); daily determinism per
-UTC date; the 03:00 UTC rollover independent of local timezone; and a malformed-command fuzz that
-must neither throw nor hang.
+**`npm test`** runs:
 
-**`npm run test:e2e`** must print `E2E OK` for both the 1280×800 desktop pass and the 390×844 touch
-mobile pass, with zero console errors, warnings or page errors. Each pass ends signed in against a
-stubbed API: `GET /api/v1/me/language` → fr-CA makes Automatic resolve to fr-CA; Deutsch in the
-Graphics tab re-renders Settings in place (the Language select survives), PUTs `ui.language`, a
-Report a problem posts to `/reports`; then Italiano chosen from the pause menu re-renders the pause
-menu, objective, progress and tray while the word list stays the same.
+* `npm run test:unit` (`node --test`): `tests/rules.test.mjs` (deterministic generation; legal
+  actions; every rejection reason; reversed words; scoring; the terminal state; serialization and
+  migration; identical hashes across runs; `validateContent()` across all journey levels, seven
+  dailies and the challenges; the 03:00 UTC daily rollover; a malformed-command fuzz),
+  `tests/store.test.mjs` (the old cloud slot read, normalisation, the two-device merge, session.js
+  over the document view, the daily streak) and `tests/i18n.test.mjs` (every key from `src/` and
+  `native/` in all nine locales with matching placeholders and inline markup, no stray keys).
+* `npm run test:native` (`tests/native.mjs`): the web index matches the files, `tsc` (strict, no
+  `skipLibCheck`), `starhermit check .` with zero warnings, and each `tests/native/*.play` as a
+  signed-out `--render-check`: `menus.play` (desktop: every title door, the Journey grid, Practice,
+  Challenge, the Daily setup, How to Play, Settings, a Practice round with a hint, pause, Help and
+  Settings from the pause menu, leaving), `journey-1.play` (desktop: the tutorial's four lessons,
+  the board solved by keys, the results with First Trail, the next level, leaving) and
+  `challenge-phone.play` (390 × 844: the Move Limit challenge with both drawers, a hint, an invalid
+  line, pause, the board solved by keys, the results with the move limit met). The board scripts are
+  generated from the rules (`npm run plays`).
 
-**`node tests/smoke.mjs`** plays journey 1, journey 40, today's daily and the tight-grid challenge to
-completion through legal actions only, and asserts `replayVerify` accepts each log.
+**Browser check.** `npm run test:browser` (`tools/browser-play.mjs`) serves the package on loopback
+and plays Journey level 1 in Chrome on the GPU at 1366 × 768 (keys, then a mouse drag across the
+last word), 390 × 844 at DPR 3 and 844 × 390 at DPR 3 (every word by a finger's swipe, the Words
+drawer by taps), failing on console errors or warnings, the runtime's error screen, or a view that
+does not reach the results.
 
-**QA bar, as checkable statements.**
-
-1. A first-time player is taught trace, reverse, direction and clean-streak before their first free
-   board (journey level 1 tutorial cards).
-2. Every implemented feature is reachable in the browser: all five modes, hint, pause, settings,
-   help, tutorial replay, journey level select, and the results actions.
-3. Zero console errors or warnings at both viewports, hosted and unhosted — hosted mode is
-   token-gated, an unhosted build makes no `/api` or `/ws` request at all, and the only expected hosted-mode network miss is the documented 404 from the
-   empty cloud-save slot.
-4. No text or control is cut off at 1280×800 or 390×844, portrait or landscape: panels scroll
-   internally, rails become drawers, and safe-area insets pad every edge.
-5. Features that could use platform services do: launch-token identity with nickname and token
-   refresh, cloud saves with remote-preferred load, ranked results posted to the script-owned
-   `high-score` board with the player's rank shown; there is no telemetry.
+**After every change:** `npm run package` (the loader refuses a stale file index).
 
 ---
 
 ## 15. Asset inventory
 
-| Path | Purpose | Source | Status |
-|---|---|---|---|
-| `assets/keyart.webp` | Title-screen backdrop (1280×720, 61 KB) | FLUX.2 klein, 1536×864, seed 41733, 30 steps, then ffmpeg → WebP q80 | generated this pass, wired in `index.html` |
-| `coverart.png` | Launcher cover, 1200×675 | Same FLUX render, scaled, title text composited with ffmpeg drawtext (DejaVu Serif), 192-colour palette, 337 KB | generated this pass; replaced a placeholder that did not match the art direction |
-| `icon.png`, `favicon.svg` | App icon / tab icon | Authored | shipped |
-| `sfx/tile-tick-1/2/3.opus` | `tick` | MOSS-SoundEffect v2.0 | shipped |
-| `sfx/select-confirm-1/2.opus` | `select` | MOSS-SoundEffect v2.0 | shipped; newly bound to the keyboard anchor this pass |
-| `sfx/invalid-thud-1/2.opus` | `invalid` | MOSS-SoundEffect v2.0 | shipped |
-| `sfx/word-found-1/2/3.opus` | `wordFound` | MOSS-SoundEffect v2.0 | shipped |
-| `sfx/round-complete-1/2.opus` | `complete` | MOSS-SoundEffect v2.0 | shipped |
-| `sfx/ui-move-1/2.opus` | `uiMove` | MOSS-SoundEffect v2.0 | shipped |
-| `sfx/hint-shimmer-1/2.opus` | `hint` | MOSS-SoundEffect v2.0, 100 steps | generated this pass, wired |
-| `sfx/achievement-1.opus` | `achievement` | MOSS-SoundEffect v2.0, 100 steps | generated this pass, wired |
-| `sfx/ui-back-1.opus` | `uiBack` | MOSS-SoundEffect v2.0, 100 steps | generated this pass, wired |
-| Letter atlas | 26 glyphs on one canvas texture | Generated at runtime in `render.buildLetterAtlas` | procedural, no file |
-| Desk, paper, tiles, pencils | The entire 3D scene, wood/paper/grain textures, particle sprites | Built procedurally in `render.buildBoard` (canvas textures) | procedural, no model files |
-
-No 3D model files and no character animation are called for: the board is the only geometry and it
-is cheaper and sharper to build in code than to ship as a mesh.
+| Path | Purpose | Source |
+|---|---|---|
+| `assets/keyart.webp` | Title-screen backdrop (1280×720) | FLUX.2 klein render, WebP q80 |
+| `coverart.png`, `cover.jpg` | Launcher cover | Same render with the title composited |
+| `icon.png` | App icon | Authored |
+| `sfx/*.opus` | The nine events of §9 (18 files) | MOSS-SoundEffect v2.0 |
+| `assets/textures/atlas-*`, `wood-*`, `paper-*` | Letter atlases, desk wood, paper | Baked from the browser build's canvas painters (`tools/bake-textures.mjs`) |
+| `assets/ui-style.json` | UI styles | Converted from `tools/ui-style.css` |
+| Desk, paper, tiles, pencils | The 3D scene | Built in code (`native/render.ts`) |
 
 ---
 
 ## 16. Known limitations
 
-* **`colorVision`, `leftHanded`, `holdToConfirm` and `haptics`** persist and (for left-handed) apply
-  a body class, but nothing currently reads them for layout, palette or vibration.
-* **No music bus content.** The music slider affects a bus with no source on it.
-* **Practice boards are not reproducible** — seeded from `Math.random()` by design, so a great
-  practice board cannot be shared or replayed.
+* **Practice boards are not reproducible** — seeded from `Math.random()` by design.
 * **Hints are unlimited and unpenalised**, which makes any board solvable without reading it.
-* **Achievements are stored locally**; on-platform they ride the cloud-save mirror once synced,
-  but site data cleared before a sync still loses them, and there is no platform entitlement.
-* **Camera is fixed.** `C` re-frames it; there is no orbit or zoom, so on a 9×9 board at a narrow
-  portrait width the tiles are small (still legible at the atlas resolution, but tight).
-* **`ui.closeSettings`** is dead code — the settings panel closes through `main`'s `settings-close`
-  handler.
+* **Achievements are local to the save** (no platform entitlement).
+* **Camera is fixed.** `C` re-frames it; there is no orbit or zoom, so a 9×9 board in a narrow
+  portrait window is small; in a short landscape phone window the bottom row sits close to the
+  announcement line.
+* **The browser build's colour-vision, left-handed, hold-to-confirm and haptics settings** were
+  stored but never read; they are not offered (the runtime's Options cover contrast and motion).
+* **Pointer drags are checked in the browser only**: the 1.18.0 runtime's play scripts have no
+  drag step, so native scripts play by keys.
+* **Ranked posting** offers the client's total to `score-script.js`, which range-checks it; there is
+  no server-side replay of the command log.
 
 ---
 
@@ -701,20 +593,8 @@ is cheaper and sharper to build in code than to ship as a mesh.
 
 1. **Per-language word banks** so the puzzle itself is localized; the UI is localized, the words
    are English.
-2. **Colour-vision palettes** — the setting exists; the deuteranopia and tritanopia theme variants do
-   not yet override `THEMES`.
-3. **Left-handed layout** — the class is applied but no rule mirrors the rails or tray.
-4. **Hold-to-confirm and haptics** — stored, not yet driven from the commit path.
-5. **Platform achievements** — mirror the five local achievements to StarHermit once the game is
-   granted an achievements scope.
-6. **Music bed** — a low, sparse room-tone melody for the music bus, to be authored once it does not
-   compete with the tile ticks.
-
-## Browser interference
-
-`browser-guard.js` (loaded from `index.html`) suppresses browser UI that gets in the way of play: the right-click context menu, the iOS long-press callout, copy / cut / paste, and page text selection. Text fields (inputs, textareas, selects, contenteditable) keep normal selection, context menu and clipboard behaviour.
-
-
-## Sound and frame-rate options
-
-The options panel includes Sound controls for master, music, effects and UI volume, a mute that preserves volume levels, and an Auto or manual concurrent-sound limit (1–64). Changes apply immediately with perceptual volume curves. A shared allocator bounds Web Audio and media playback, including loops and scheduled sources. Graphics includes Auto display refresh or a custom maximum frame rate from 1–1000 FPS; rendering is paced independently of simulation and input. Preferences persist locally, with FPS stored per detected GPU, and reconcile with Starhermit settings when signed in. The controls support keyboard and touch input and the supported English, Spanish, German, French, Portuguese and Italian locales.
+2. **Colour-vision palettes** for the board themes.
+3. **Haptics** on a found word.
+4. **Platform achievements** mirroring the five local ones.
+5. **Music bed** — a low, sparse room-tone melody, to be authored once it does not compete with the
+   tile ticks.
