@@ -1,0 +1,86 @@
+# The title and its doors on a desktop: Journey (the level grid), Practice,
+# Challenge, the Daily setup, How to Play and Settings; a Practice round
+# started, its hint, pause, Help and Settings from the pause menu, and
+# leaving the round.
+# viewport 1280x720
+until 300 Daily Challenge
+frames 120
+save title
+click =Journey
+until 60 Mastery stages
+frames 10
+save journey
+click =Back
+until 60 Daily Challenge
+frames 10
+click =Practice
+until 60 Medium
+frames 10
+save practice
+click =Back
+until 60 Daily Challenge
+frames 10
+click =Challenge
+until 60 Speed Target
+frames 10
+save challenges
+click =Back
+until 60 Daily Challenge
+frames 10
+click =Daily Challenge
+until 60 One shared board
+frames 10
+save daily-setup
+click =Back
+until 60 Daily Challenge
+frames 10
+click =How to Play
+until 60 Both directions
+frames 10
+save help
+click =Close
+until 60 Daily Challenge
+frames 10
+click =Settings
+until 60 Open Options
+frames 10
+save settings
+click =Done
+until 60 Daily Challenge
+frames 10
+click =Practice
+until 60 Easy
+frames 10
+click Easy
+until 60 Unranked practice board
+frames 10
+click =Start
+until 120 Reset Camera
+frames 60
+click Hint (H)
+frames 30
+save practice-hint
+key Escape 1
+until 60 Resume
+frames 10
+save paused
+click =Help
+until 60 Both directions
+frames 10
+click =Close
+until 60 Resume
+frames 10
+click =Settings
+until 60 Replay Tutorial
+frames 10
+click =Done
+until 60 Resume
+frames 10
+click =Resume
+frames 20
+key Escape 1
+until 60 Leave Round
+frames 10
+click =Leave Round
+until 60 Daily Challenge
+frames 10

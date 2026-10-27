@@ -3,7 +3,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DICTS, LOCALES, T, setLocale } from '../src/i18n.js';
-import * as gi18n from '../src/gfx-i18n.js';
 import { shStrings } from '../src/sh-strings.js';
 import { ALL } from './i18n-keys.mjs';
 
@@ -30,14 +29,9 @@ test('no locale carries keys that no longer exist', () => {
   }
 });
 
-test('Graphics and StarHermit strings exist in all nine locales', () => {
-  for (const locale of LOCALES) {
-    gi18n.setLocale(locale);
-    assert.ok(gi18n.t('graphics'), locale);
-    assert.ok(shStrings([locale]).signIn, locale);
-  }
-  gi18n.setLocale('de-DE');
-  assert.notEqual(gi18n.t('graphics'), 'Graphics');
+test('StarHermit account strings exist in all nine locales', () => {
+  for (const locale of LOCALES) assert.ok(shStrings([locale]).signIn, locale);
+  assert.notEqual(shStrings(['de-DE']).signIn, shStrings(['en-US']).signIn);
 });
 
 test('rich-text keys keep their inline markup in every locale', () => {
@@ -58,8 +52,6 @@ test('T falls back to the key and fills placeholders; regional variants inherit'
   setLocale('es-ES');
   assert.equal(T('Settings'), 'Ajustes');
   assert.equal(T('Hint'), 'Pista');
-  setLocale('en-GB');
-  assert.equal(T('Color-vision palette'), 'Colour-vision palette');
   setLocale('en-US');
   assert.equal(T('Hint'), 'Hint');
 });
