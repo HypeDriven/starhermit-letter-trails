@@ -25,9 +25,15 @@ const LS = {
 // Persistence helpers (guarded; storage may be unavailable)
 // ---------------------------------------------------------------------------
 
+// The key/value store: the browser build's localStorage; the engine client
+// injects the save document's view (setStorage, src/store.js docStorage).
+let backing = null;
+export function setStorage(s) { backing = s; }
+const storage = () => backing || globalThis.localStorage;
+
 function load(key, fallback) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = storage().getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
@@ -36,7 +42,7 @@ function load(key, fallback) {
 
 function save(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    storage().setItem(key, JSON.stringify(value));
   } catch { /* storage unavailable — session continues without persistence */ }
 }
 

@@ -1,0 +1,105 @@
+/* Letter Trails — the browser build's index.html <style> rewritten
+   class-based for the engine's UI (`npm run css` converts it into
+   assets/ui-style.json). Element selectors, ids, attribute selectors and
+   @media do not convert: every widget names its classes and the breakpoints
+   are layouts picked in native/screens.ts (wide: side rails; compact: the
+   bottom tray and drawers). High contrast (the old body.high-contrast
+   palette), larger text and reduced motion are the runtime's options;
+   native/style.ts swaps the tokens. */
+
+:root {
+  --paper: #f3ead7;
+  --ink: #2b2b2f;
+  --muted: #5d5b59;
+  --accent: #b3543f;
+  --accent-ink: #ffffff;
+  --desk: #6b4f3a;
+  --tile: #e8dcc0;
+  --focus: #1a5fb4;
+  --hover: #fbf3e2;
+  --rail: #f3ead7f0;
+  --wash: #1e16108c;
+  --found: #2b2b2f8c;
+}
+
+* { box-sizing: border-box; }
+
+/* ------------------------------------------------------------- text */
+.body { color: var(--ink); font-size: 16px; }
+.body-center { color: var(--ink); font-size: 16px; text-align: center; }
+.muted { color: var(--muted); font-size: 14.4px; }
+.muted-center { color: var(--muted); font-size: 14.4px; text-align: center; }
+.title { color: var(--ink); font-size: 32px; font-weight: 700; }
+.h2 { color: var(--ink); font-size: 24px; font-weight: 700; }
+.h3 { color: var(--ink); font-size: 18.7px; font-weight: 700; }
+.rail-h { color: var(--ink); font-size: 16.8px; font-weight: 700; }
+.strong { color: var(--ink); font-size: 16px; font-weight: 700; }
+.word { color: var(--ink); font-size: 16px; font-weight: 700; letter-spacing: 1.92px; }
+.word-found { color: var(--found); font-size: 16px; font-weight: 700; letter-spacing: 1.92px; }
+.stat { color: var(--ink); font-size: 15.2px; }
+.stat-muted { color: var(--muted); font-size: 13.7px; }
+.score-label { color: var(--ink); font-size: 16px; }
+.score-value { color: var(--ink); font-size: 16px; }
+.score-total-label { color: var(--ink); font-size: 16px; font-weight: 700; }
+.score-total-value { color: var(--ink); font-size: 16px; font-weight: 700; }
+.dt { color: var(--ink); font-size: 16px; }
+.dd { color: var(--ink); font-size: 16px; }
+.live { color: var(--ink); font-size: 16px; }
+.live-dark { color: #ffffff; font-size: 16px; }
+.toast-text { color: var(--ink); font-size: 16px; text-align: center; }
+
+/* ------------------------------------------------------------- surfaces */
+.panel {
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 12px;
+  padding: 24px; box-shadow: 0 8px 30px #00000066;
+}
+.rail { background: var(--rail); border: 2px solid var(--ink); border-radius: 10px; padding: 12px; }
+.drawer { background: var(--paper); border: 2px solid var(--ink); border-radius: 0; padding: 12px; }
+.tray { background: var(--paper); padding: 8px; }
+.rule-card { border: 2px solid var(--ink); border-radius: 8px; padding: 12px; background: var(--tile); }
+.score-total { border-top: 2px solid var(--ink); border-radius: 0; padding: 8px 0 3px 0; }
+.score-row { padding: 3px 0; }
+.live-box { background: #0000008c; border-radius: 8px; padding: 4px 10px; }
+.toast { background: var(--paper); border: 2px solid var(--accent); border-radius: 8px; padding: 10px 16px; box-shadow: 0 6px 18px #00000059; }
+.wash { background: var(--wash); }
+.wash-light { background: #1e161040; }
+.scrim { background: #00000059; }
+/* Title key art: assets/keyart.webp under a scrim; the scrim colour alone keeps the panel readable while it loads. */
+.title-art { background: linear-gradient(#1c140e8c, #1c140ea8), url('../assets/keyart.webp') center / cover, #1e16108c; }
+
+/* ------------------------------------------------------------- buttons */
+.btn {
+  min-width: 44px; min-height: 44px; padding: 10px 18px;
+  border: 2px solid var(--ink); border-radius: 8px; background: var(--paper);
+  color: var(--ink); font-size: 16px; text-align: center;
+}
+.btn:hover { background: var(--hover); }
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn:disabled { opacity: 0.5; }
+.btn-primary {
+  min-width: 44px; min-height: 44px; padding: 10px 18px;
+  border: 2px solid var(--ink); border-radius: 8px; background: var(--accent);
+  color: var(--accent-ink); font-size: 20.8px; font-weight: 700; text-align: center;
+}
+.btn-primary:hover { background: #bf6450; }
+.btn-primary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-done {
+  min-width: 44px; min-height: 44px; padding: 10px 4px;
+  border: 2px solid var(--ink); border-radius: 8px; background: var(--accent);
+  color: var(--accent-ink); font-size: 16px; text-align: center;
+}
+.btn-done:hover { background: #bf6450; }
+.btn-done:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-level {
+  min-width: 44px; min-height: 44px; padding: 10px 4px;
+  border: 2px solid var(--ink); border-radius: 8px; background: var(--paper);
+  color: var(--ink); font-size: 16px; text-align: center;
+}
+.btn-level:hover { background: var(--hover); }
+.btn-level:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-level:disabled { opacity: 0.5; }
+.tab {
+  min-height: 44px; padding: 10px 18px; border: 2px solid var(--ink); border-radius: 8px;
+  background: var(--tile); color: var(--ink); font-size: 16px; text-align: center;
+}
+.tab:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }

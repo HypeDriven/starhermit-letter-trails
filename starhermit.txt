@@ -1,9 +1,24 @@
 name=Letter Trails
 description=Trace straight lines through a letter grid to find and clear themed hidden words.
-launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=score-script.js
 cover=cover.jpg
+
+# StarHermit engine script game: one package, played natively by the
+# StarHermit client and in browsers by the engine's web runtime. Browsers open
+# launch=index.html, the loader `npm run package` writes (it pins the engine
+# on wiki.starhermit.com by hash; never edit it). Re-run `npm run package`
+# after every change and commit index.html + starhermit-files.json.
+launch=index.html
+engine.api=1
+engine.entry=native/main.ts
+engine.version=1.18.0
+engine.minor=20
+engine.capabilities=platform,storage,clipboard
+
+# Keyboard controls (players rebind keys and pads in the runtime's Options).
+# The board is also played by dragging across the letters with the pointer
+# or a finger; every button takes the pointer, touch, or Tab and Enter.
 control.up=ArrowUp | Cursor up
 control.down=ArrowDown | Cursor down
 control.left=ArrowLeft | Cursor left
@@ -12,3 +27,18 @@ control.select=Enter+Space | Start / confirm line
 control.back=Escape | Cancel / pause
 control.hint=KeyH | Hint
 control.camera=KeyC | Reset camera
+engine.group.up=Board
+engine.group.hint=Assists
+engine.group.back=Round
+
+# Gamepad defaults: the D-pad or left stick moves the cursor, South starts
+# or confirms a line, East cancels it or pauses (Start pauses too), North
+# gives a hint, West resets the camera.
+engine.gamepad.up=DpadUp+LeftStickUp
+engine.gamepad.down=DpadDown+LeftStickDown
+engine.gamepad.left=DpadLeft+LeftStickLeft
+engine.gamepad.right=DpadRight+LeftStickRight
+engine.gamepad.select=South
+engine.gamepad.back=East+Start
+engine.gamepad.hint=North
+engine.gamepad.camera=West

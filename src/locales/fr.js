@@ -64,11 +64,9 @@ export const FR_FR = {
   '{n} min': '{n} min',
   'Players': 'Joueurs',
   'Ranked': 'Classé',
-  'Yes — validated replay submitted': 'Oui — rediffusion validée envoyée',
   'No': 'Non',
   'Move limit': 'Limite de coups',
   'Time target': 'Objectif de temps',
-  'Next': 'Suivant',
   'Board Complete!': 'Grille terminée !',
   'Round Over': 'Manche terminée',
   'Words ({n})': 'Mots ({n})',
@@ -89,12 +87,7 @@ export const FR_FR = {
   'target {time}': 'objectif {time}',
   'Start Playing': 'Commencer à jouer',
   'Got it': 'Compris',
-  'Letter Trails needs WebGL': 'Letter Trails nécessite WebGL',
-  'Your browser could not create a WebGL context, so the 3D board cannot start. Your local progress and settings are preserved. Try a current version of Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.': 'Votre navigateur n’a pas pu créer de contexte WebGL : la grille 3D ne peut pas démarrer. Votre progression et vos paramètres locaux sont conservés. Essayez une version récente de Firefox, Chrome, Edge ou Safari avec l’accélération matérielle activée.',
-  'Objective and word list': 'Objectif et liste de mots',
   'Close word list': 'Fermer la liste de mots',
-  'Words to find': 'Mots à trouver',
-  'Status and actions': 'État et actions',
   'Close status': 'Fermer l’état',
   'Status': 'État',
   'Score:': 'Score :',
@@ -123,21 +116,8 @@ export const FR_FR = {
   'Resume': 'Reprendre',
   'Help': 'Aide',
   'Leave Round': 'Quitter la manche',
-  'Settings sections': 'Sections des paramètres',
-  'Music volume': 'Volume de la musique',
-  'Effects volume': 'Volume des effets',
-  'Ambience volume': 'Volume de l’ambiance',
-  'Reduced motion': 'Animations réduites',
-  'High contrast': 'Contraste élevé',
-  'Color-vision palette': 'Palette daltonisme',
-  'Default': 'Par défaut',
-  'Deuteranopia-safe': 'Adaptée à la deutéranopie',
-  'Tritanopia-safe': 'Adaptée à la tritanopie',
-  'Larger text': 'Texte plus grand',
-  'Left-handed controls': 'Commandes pour gauchers',
   'Replay Tutorial': 'Rejouer le tutoriel',
   'Done': 'Terminé',
-  'Score breakdown': 'Détail du score',
   'Retry': 'Rejouer',
   'Menu': 'Menu',
   'Close': 'Fermer',
@@ -174,6 +154,16 @@ export const FR_FR = {
   'Complete a hard practice board.': 'Terminez une grille d’entraînement difficile.',
   'Century of Words': 'Centaine de mots',
   'Find 100 words in total.': 'Trouvez 100 mots au total.',
+  'Round finished. Total score {score}.':
+    'Partie terminée. Score total : {score}.',
+  '<strong>Gamepad and touch.</strong> The D-pad or left stick moves the cursor, A starts or confirms a line, B cancels or pauses, Y gives a hint, X resets the camera. On a touch screen, drag a finger along the letters.':
+    '<strong>Manette et écran tactile.</strong> La croix directionnelle ou le stick gauche déplacent le curseur, A commence ou confirme une ligne, B annule ou met en pause, Y donne un indice, X réinitialise la caméra. Sur un écran tactile, faites glisser un doigt sur les lettres.',
+  'Sound, graphics, language, larger text, high contrast and reduced motion are in the StarHermit Options.':
+    'Le son, les graphismes, la langue, le texte agrandi, le contraste élevé et le mouvement réduit se trouvent dans les Options StarHermit.',
+  'Open Options':
+    'Ouvrir les Options',
+  'Key bindings':
+    'Affectation des touches',
 };
 
 export const FR_CA = {
@@ -182,5 +172,5 @@ export const FR_CA = {
   'New best score!': 'Nouveau record!',
   'cloud synced': 'infonuagique synchronisé',
   'Score:': 'Pointage :',
-  'Score breakdown': 'Détail du pointage',
+  'Round finished. Total score {score}.': 'Partie terminée. Pointage total : {score}.',
 };

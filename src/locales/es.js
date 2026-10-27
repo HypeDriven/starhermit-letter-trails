@@ -64,11 +64,9 @@ export const ES_419 = {
   '{n} min': '{n} min',
   'Players': 'Jugadores',
   'Ranked': 'Clasificatoria',
-  'Yes — validated replay submitted': 'Sí: se envía una repetición validada',
   'No': 'No',
   'Move limit': 'Límite de movimientos',
   'Time target': 'Objetivo de tiempo',
-  'Next': 'Siguiente',
   'Board Complete!': '¡Tablero completado!',
   'Round Over': 'Ronda terminada',
   'Words ({n})': 'Palabras ({n})',
@@ -89,12 +87,7 @@ export const ES_419 = {
   'target {time}': 'objetivo {time}',
   'Start Playing': 'Empezar a jugar',
   'Got it': 'Entendido',
-  'Letter Trails needs WebGL': 'Letter Trails necesita WebGL',
-  'Your browser could not create a WebGL context, so the 3D board cannot start. Your local progress and settings are preserved. Try a current version of Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.': 'Tu navegador no pudo crear un contexto WebGL, así que el tablero 3D no puede iniciarse. Tu progreso y tu configuración locales se conservan. Prueba una versión actual de Firefox, Chrome, Edge o Safari con la aceleración por hardware activada.',
-  'Objective and word list': 'Objetivo y lista de palabras',
   'Close word list': 'Cerrar lista de palabras',
-  'Words to find': 'Palabras por encontrar',
-  'Status and actions': 'Estado y acciones',
   'Close status': 'Cerrar estado',
   'Status': 'Estado',
   'Score:': 'Puntuación:',
@@ -123,21 +116,8 @@ export const ES_419 = {
   'Resume': 'Continuar',
   'Help': 'Ayuda',
   'Leave Round': 'Abandonar ronda',
-  'Settings sections': 'Secciones de configuración',
-  'Music volume': 'Volumen de la música',
-  'Effects volume': 'Volumen de los efectos',
-  'Ambience volume': 'Volumen del ambiente',
-  'Reduced motion': 'Movimiento reducido',
-  'High contrast': 'Alto contraste',
-  'Color-vision palette': 'Paleta para daltonismo',
-  'Default': 'Predeterminada',
-  'Deuteranopia-safe': 'Apta para deuteranopía',
-  'Tritanopia-safe': 'Apta para tritanopía',
-  'Larger text': 'Texto más grande',
-  'Left-handed controls': 'Controles para zurdos',
   'Replay Tutorial': 'Repetir tutorial',
   'Done': 'Listo',
-  'Score breakdown': 'Desglose de la puntuación',
   'Retry': 'Reintentar',
   'Menu': 'Menú',
   'Close': 'Cerrar',
@@ -174,6 +154,16 @@ export const ES_419 = {
   'Complete a hard practice board.': 'Completa un tablero de práctica difícil.',
   'Century of Words': 'Centenar de palabras',
   'Find 100 words in total.': 'Encuentra 100 palabras en total.',
+  'Round finished. Total score {score}.':
+    'Ronda terminada. Puntuación total: {score}.',
+  '<strong>Gamepad and touch.</strong> The D-pad or left stick moves the cursor, A starts or confirms a line, B cancels or pauses, Y gives a hint, X resets the camera. On a touch screen, drag a finger along the letters.':
+    '<strong>Mando y pantalla táctil.</strong> La cruceta o el stick izquierdo mueven el cursor, A empieza o confirma una línea, B cancela o pausa, Y da una pista, X restablece la cámara. En una pantalla táctil, desliza un dedo por las letras.',
+  'Sound, graphics, language, larger text, high contrast and reduced motion are in the StarHermit Options.':
+    'El sonido, los gráficos, el idioma, el texto más grande, el alto contraste y el movimiento reducido están en las Opciones de StarHermit.',
+  'Open Options':
+    'Abrir Opciones',
+  'Key bindings':
+    'Asignación de teclas',
 };
 
 export const ES_ES = {
@@ -181,6 +171,5 @@ export const ES_ES = {
   'Found {word}! {found} of {total} words.': '¡Has encontrado {word}! {found} de {total} palabras.',
   'You already found that word.': 'Ya has encontrado esa palabra.',
   'Selection went off the board.': 'La selección se ha salido del tablero.',
-  'Your browser could not create a WebGL context, so the 3D board cannot start. Your local progress and settings are preserved. Try a current version of Firefox, Chrome, Edge, or Safari with hardware acceleration enabled.': 'Tu navegador no ha podido crear un contexto WebGL, así que el tablero 3D no puede iniciarse. Tu progreso y tus ajustes locales se conservan. Prueba una versión actual de Firefox, Chrome, Edge o Safari con la aceleración por hardware activada.',
   'Unranked. Restart freely; no effect on competitive rating.': 'Sin clasificación. Reinicia cuando quieras; no afecta a la clasificación competitiva.',
 };
