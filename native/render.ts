@@ -6,8 +6,8 @@
 // warm key light with fitted shadows and a hemisphere fill, and the camera
 // framed to fit the board in what the HUD leaves of the window.
 //
-// From three.js r185: light intensities are ÷ π (the engine's convention);
-// RoomEnvironment(renderer) + PMREMGenerator give the per-material
+// From three.js r185 (engine.minor 26): light intensities, shadow bias and box as the page set them;
+// RoomEnvironment(renderer) lowered as r183+ + PMREMGenerator give the per-material
 // reflections as before; the post chain (GTAOPass, UnrealBloomPass threshold
 // 1.0, the GradeShader after the output, SMAA / FXAA / MSAA) is renderer.ao /
 // bloom / grade (display space) / antialias. The procedural canvases (letter
@@ -17,7 +17,7 @@
 // frame-rate readout are the runtime's. Cosmetic randomness never touches
 // the rules.
 import {
-  ACESFilmicToneMapping, AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, ConeGeometry,
+  ACESFilmicToneMapping, AdditiveBlending, OrthographicCamera, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, ConeGeometry,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial,
   MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, PMREMGenerator, Points, PointsMaterial, Raycaster, RepeatWrapping,
   RoomEnvironment, RoundedBoxGeometry, SRGBColorSpace, TextureLoader, Vector3, pointerToNdc, renderer, scene,
@@ -49,11 +49,12 @@ renderer.toneMappingExposure = 1.0;
 const camera = new PerspectiveCamera(FRAMING.fov, 16 / 9, 0.1, 100);
 const raycaster = new Raycaster();
 
-// Lighting: warm key with fitted shadows, hemisphere fill (three.js intensities ÷ π).
-const keyLight = new DirectionalLight(0xfff2dd, 2.1 / PI);
+// Lighting: warm key with fitted PCF shadows, hemisphere fill (render.js's own values).
+const keyLight = new DirectionalLight(0xfff2dd, 2.1);
 keyLight.shadow.bias = -0.0004;
+keyLight.shadow.normalBias = 0.02;
 keyLight.shadow.radius = 2;
-const hemiLight = new HemisphereLight(0xf8f4ea, 0x40342a, 0.85 / PI);
+const hemiLight = new HemisphereLight(0xf8f4ea, 0x40342a, 0.85);
 scene.add(keyLight, keyLight.target, hemiLight);
 scene.background = new Color(Content.THEMES.classic!.desk).multiplyScalar(0.7); // behind menus before a board exists
 
@@ -134,7 +135,11 @@ const ribbonTexture = canvasTexture(256, 64, (ctx) => {
 
 function envMap(): Texture | null {
   if (!envTexture) {
-    try { envTexture = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture; }
+    try {
+      const room = new RoomEnvironment(renderer);
+      room.position.y = -3.5; // three.js r183+ lowers the room
+      envTexture = new PMREMGenerator(renderer).fromScene(room, 0.04).texture;
+    }
     catch (e) { console.warn(`environment: ${e instanceof Error ? e.message : String(e)}`); }
   }
   return envTexture;
@@ -428,12 +433,17 @@ function stepParticles(dt: number): void {
   }
 }
 
-/** The key light over the board; its shadows reach just past the board and pencils (render.js fitted an
- * orthographic frustum to them: the engine fits the shadow box to the view up to `shadow.distance`). */
+/** The key light over the board; its shadows reach just past the board and pencils (render.js's
+ * orthographic frustum fitted to them). */
 function fitShadow(): void {
   const d = boardSpan * 1.6;
   keyLight.position.set(boardSpan * 0.6, boardSpan * 1.4, boardSpan * 0.4).normalize().multiplyScalar(d);
   keyLight.target.position.set(0, 0, 0);
+  const cam = keyLight.shadow.camera as OrthographicCamera;
+  const e = boardSpan * 0.72 + 1.2;
+  cam.left = -e; cam.right = e; cam.top = e; cam.bottom = -e;
+  cam.near = d * 0.3; cam.far = d * 1.8;
+  cam.updateProjectionMatrix();
 }
 
 /** Fit both axes: narrow (portrait) windows need the width to fit; the tray and announcement line take a share of the height. */
@@ -446,7 +456,6 @@ function frameCamera(): void {
   camera.position.set(0, dist * Math.cos(FRAMING.cameraTilt) * FRAMING.cameraHeightFactor, dist * Math.sin(FRAMING.cameraTilt));
   camera.lookAt(0, 0, 0);
   // Fog starts beyond the board whatever the camera distance, so tiles never wash out.
-  keyLight.shadow.distance = camera.position.length() + boardSpan * 1.2;
   const fog = scene.fog as Fog | null;
   if (fog) {
     const cd = camera.position.length();
@@ -554,7 +563,7 @@ export function applyLook(next: Look): void {
   keyLight.castShadow = next.shadows > 0;
   if (next.shadows > 0) keyLight.shadow.mapSize = next.shadows;
   // Image-based lighting from a neutral room; the hemisphere fill backs off to compensate.
-  hemiLight.intensity = (next.reflections ? 0.5 : 0.85) / PI;
+  hemiLight.intensity = next.reflections ? 0.5 : 0.85;
   const b = before?.budget, nb = next.budget;
   const rebuild = !b || b.material !== nb.material || b.atlas !== nb.atlas || b.wood !== nb.wood || b.segments !== nb.segments
     || b.sparks !== nb.sparks || b.motes !== nb.motes || before!.detailed !== next.detailed || before!.particles !== next.particles;
