@@ -1,7 +1,7 @@
 // Writes the play scripts in tests/native/ that play whole rounds through the
 // real UI, from the rules: each word's cells come from src/rules.js on the
 // level's seed, and the script walks the cursor there with the arrow keys and
-// Enter (as a keyboard player would). The 1.22.0 runtime's play scripts have
+// Enter (as a keyboard player would). The 1.23.0 runtime's play scripts have
 // no pointer drag, so drags and swipes across the tiles are played by the
 // browser check (tools/browser-play.mjs, at the tiles' window positions from
 // tools/board.mjs project()).   node tools/gen-plays.mjs
