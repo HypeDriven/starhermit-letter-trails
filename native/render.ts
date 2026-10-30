@@ -555,7 +555,7 @@ export function applyLook(next: Look): void {
   // render.js GradeShader (after the output, display colours): a 0.18 S-curve, +7 % saturation,
   // warm highlights and cool shadows, the 0.2 vignette.
   renderer.grade = next.grade ? {
-    space: "display", contrast: 0.09, saturation: 1.07, split: [0.2, 0.8], shadows: [0.97, 0.985, 1.03], highlights: [1.03, 1.0, 0.97],
+    space: "display", contrastCurve: "s", contrast: 0.18, saturation: 1.07, split: [0.2, 0.8], shadows: [0.97, 0.985, 1.03], highlights: [1.03, 1.0, 0.97],
     vignette: { amount: 0.2, inner: 0.38, outer: 0.85 },
   } : null;
   renderer.antialias = next.antialias;
