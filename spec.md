@@ -15,7 +15,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | Genre | Single-player word search / observation puzzle |
 | Players | 1 |
 | Session length | 1–5 minutes per board; ~8 minutes for a daily plus a journey level |
-| Platforms | StarHermit engine 1.36.1 script game (host API 1.32, `engine.minor=32`): natively in the StarHermit client and in browsers through the engine's web runtime (desktop and mobile, portrait and landscape) |
+| Platforms | StarHermit engine 1.36.2 script game (host API 1.32, `engine.minor=32`): natively in the StarHermit client and in browsers through the engine's web runtime (desktop and mobile, portrait and landscape) |
 | Rendering | `starhermit:scene` (three.js r185 model) — a 3D desk with box tiles, one directional key light, a baked letter atlas; all menus and the HUD are `starhermit:ui`, built every frame over the scene |
 | Persistence | The engine save (`starhermit:storage` `saves`): one document holding the `lt:*` keys (settings, journey progress, best scores, daily streak, achievements, guest id), on the device and, signed in, in the cloud slot |
 | Network | Optional. Platform calls only when signed in (save sync, score posting, leaderboard, invite link) plus the platform clock |
@@ -24,7 +24,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 
 | Path | Owns |
 |---|---|
-| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.36.1 / minor 32, capabilities `platform,storage,clipboard`, `control.*` and `engine.gamepad.*` defaults per action |
+| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.36.2 / minor 32, capabilities `platform,storage,clipboard`, `control.*` and `engine.gamepad.*` defaults per action |
 | `native/main.ts` | Entry: app state, round lifecycle (setup → tutorial → active ⇄ paused → results), selection from keys, pointer and touch drags, hints, the fixed-step clock, results, achievements, ranked posting, lifecycle (a hidden window pauses) |
 | `native/screens.ts` | Every screen, the wide-layout rails, the compact tray and drawers, the announcement line and toast (`starhermit:ui`) |
 | `native/render.ts` | The board on `starhermit:scene`: desk, paper, tiles with per-letter UVs into the atlas, pencils, selection ribbon, motes, sparkles, lights, camera framing, picking, the post chain per graphics tier |
@@ -373,7 +373,7 @@ size, ambient occlusion (resolution, samples), bloom resolution, the grade and a
 table shows them at each tier's anchor level (quantum, molecular, terrestrial, galactic). The tier
 selects the game's art (the rest of the table), and the level's particle budget over the anchor's
 scales the sparkles within the tier (≤ 2×). Low keeps MSAA where the level asks for none (engine
-1.36.1 draws fog and translucent overlays off-colour without anti-aliasing). The runtime owns
+1.36.2 draws fog and translucent overlays off-colour without anti-aliasing). The runtime owns
 render scale, the pixel-ratio cap, adaptive resolution, the frame-rate limit and readout. The board
 (keeping found words) is rebuilt when the tier's budget changes.
 
@@ -472,7 +472,7 @@ puzzle, so every locale plays the same English boards with translated theme name
 
 `starhermit.txt` declares `name`, `description`, `owner`, `server=score-script.js`, `cover=cover.jpg`,
 `launch=index.html` (the engine's web loader), `engine.entry=native/main.ts`,
-`engine.version=1.36.1`, `engine.minor=32`, `engine.capabilities=platform,storage,clipboard`, and the
+`engine.version=1.36.2`, `engine.minor=32`, `engine.capabilities=platform,storage,clipboard`, and the
 `control.*` / `engine.gamepad.*` defaults of §6.
 
 * **Player** — signed in, the title shows "Playing as <display name> · <sync status>"; a guest sees
@@ -586,7 +586,7 @@ does not reach the results.
   announcement line.
 * **The browser build's colour-vision, left-handed, hold-to-confirm and haptics settings** were
   stored but never read; they are not offered (the runtime's Options cover contrast and motion).
-* **Pointer drags are checked in the browser only**: the 1.36.1 runtime's play scripts have no
+* **Pointer drags are checked in the browser only**: the 1.36.2 runtime's play scripts have no
   drag step, so native scripts play by keys.
 * **Ranked posting** offers the client's total to `score-script.js`, which range-checks it; there is
   no server-side replay of the command log.
