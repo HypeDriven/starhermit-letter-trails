@@ -10,8 +10,9 @@
 // RoomEnvironment(renderer) lowered as r183+ + PMREMGenerator give the per-material
 // reflections as before; the post chain (GTAOPass, UnrealBloomPass threshold
 // 1.0, the GradeShader after the output, SMAA / FXAA / MSAA) is renderer.ao /
-// bloom / grade (display space) / antialias. The procedural canvases (letter
-// atlas, wood, paper) are baked images (tools/bake-textures.mjs); each tile
+// bloom / grade (display space) / antialias, each on and sized by the graphics
+// level. The procedural canvases (letter atlas, wood, paper) are baked images
+// (tools/bake-textures.mjs); each tile
 // shows its letter by its own top-face UVs into the atlas instead of a cloned
 // texture with an offset. Adaptive resolution, the pixel-ratio cap and the
 // frame-rate readout are the runtime's. Cosmetic randomness never touches
@@ -546,12 +547,14 @@ export function applyLook(next: Look): void {
   if (look && JSON.stringify(look) === JSON.stringify(next)) return;
   const before = look;
   look = next;
-  renderer.ao = next.ao === "off" ? null : {
-    blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: next.ao === "high" ? 16 : 8, resolution: next.budget.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
+  // The level's AO; full resolution is the engine's "high" (the old Ultra's wider denoise).
+  const ao = next.ao, full = !!ao && ao.resolution >= 1;
+  renderer.ao = ao && {
+    blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: ao.samples, resolution: ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: full ? 6 : 4, rings: 2, samples: ao.denoiseSamples, radiusExponent: 2 },
   };
   // High threshold: only the selection trail, sparkles and bright highlights bloom.
-  renderer.bloom = next.bloom ? { strength: 0.3, radius: 0.25, threshold: 1.0, resolution: next.budget.bloomRes } : null;
+  renderer.bloom = next.bloom === null ? null : { strength: 0.3, radius: 0.25, threshold: 1.0, resolution: next.bloom };
   // render.js GradeShader (after the output, display colours): a 0.18 S-curve, +7 % saturation,
   // warm highlights and cool shadows, the 0.2 vignette.
   renderer.grade = next.grade ? {
@@ -561,6 +564,7 @@ export function applyLook(next: Look): void {
   renderer.antialias = next.antialias;
   renderer.shadowMap.enabled = next.shadows > 0;
   keyLight.castShadow = next.shadows > 0;
+  // The level's map size: at engine.minor ≥ 23 the engine keeps whatever the game sets.
   if (next.shadows > 0) keyLight.shadow.mapSize = next.shadows;
   // Image-based lighting from a neutral room; the hemisphere fill backs off to compensate.
   hemiLight.intensity = next.reflections ? 0.5 : 0.85;

@@ -28,7 +28,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `native/main.ts` | Entry: app state, round lifecycle (setup → tutorial → active ⇄ paused → results), selection from keys, pointer and touch drags, hints, the fixed-step clock, results, achievements, ranked posting, lifecycle (a hidden window pauses) |
 | `native/screens.ts` | Every screen, the wide-layout rails, the compact tray and drawers, the announcement line and toast (`starhermit:ui`) |
 | `native/render.ts` | The board on `starhermit:scene`: desk, paper, tiles with per-letter UVs into the atlas, pencils, selection ribbon, motes, sparkles, lights, camera framing, picking, the post chain per graphics tier |
-| `native/quality.ts` | The look per graphics tier and level (the old presets and budgets) |
+| `native/quality.ts` | The look per graphics level: the level's effects (`levelSettings()`) and the tier's art (the old presets and budgets) |
 | `native/audio.ts` | Opus one-shots per event on the runtime's buses; the ambience rendered once into a looping clip |
 | `native/platform.ts` | The save document (session.js view, foreign-save migration, conflict merge, legacy settings removal), player, invite link, platform clock, score posting through `score-script.js`, the board's top ten |
 | `native/i18n.ts` | Locale from the runtime's interface language; `T` / `N` / `M` over `src/i18n.js`, `S` over `src/sh-strings.js` |
@@ -368,10 +368,14 @@ bright highlights), a display-space colour grade (gentle S-curve, +7 % saturatio
 cool shadows, 0.2 vignette) and FXAA / SMAA / MSAA.
 
 **Graphics levels.** The runtime's Options › Graphics chooses the level (Auto by default, from the
-device); its quality tier selects the look below and the level scales the sparkles within the tier
-(≤ 2×). The runtime owns render scale, the pixel-ratio cap, adaptive resolution, the frame-rate
-limit and readout and the shadow-map cap. The board (keeping found words) is rebuilt when the
-tier's budget changes.
+device). The engine-owned effects are the level's own (`levelSettings()`): shadows and their map
+size, ambient occlusion (resolution, samples), bloom resolution, the grade and anti-aliasing; the
+table shows them at each tier's anchor level (quantum, molecular, terrestrial, galactic). The tier
+selects the game's art (the rest of the table), and the level's particle budget over the anchor's
+scales the sparkles within the tier (≤ 2×). Low keeps MSAA where the level asks for none (engine
+1.36.1 draws fog and translucent overlays off-colour without anti-aliasing). The runtime owns
+render scale, the pixel-ratio cap, adaptive resolution, the frame-rate limit and readout. The board
+(keeping found words) is rebuilt when the tier's budget changes.
 
 | Tier | Shadows | AO | Bloom / grade | AA | Reflections | Detail | Particles | Materials | Atlas cell | Wood / paper | Bevel segments | Sparkles / motes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|

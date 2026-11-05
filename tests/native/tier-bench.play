@@ -1,0 +1,98 @@
+# Graphics-tier bench (tools/engine-tier-bench.mjs): Journey level 1 (fixed board) past the
+# tutorial, then three words found by the arrow keys and Enter (ribbon, lifted tiles, found-word
+# sparkles, motes) inside the measured stretch.
+# viewport 1280x720
+until 300 Daily Challenge
+frames 10
+click =Play
+until 60 Journey — Level 1
+frames 10
+click =Start
+until 120 Trace a line
+frames 150
+click =Got it
+until 60 Words run both ways
+frames 5
+click =Got it
+until 60 Eight directions
+frames 5
+click =Got it
+until 60 Clean streaks
+frames 5
+click =Start Playing
+until 60 Reset Camera
+frames 120
+measure start
+# SHELL
+key ArrowDown 1
+frames 1
+key ArrowRight 1
+frames 1
+key Enter 1
+frames 2
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key Enter 1
+frames 10
+until 60 1 of 4
+frames 20
+# KELP
+key ArrowDown 1
+frames 1
+key ArrowDown 1
+frames 1
+key ArrowDown 1
+frames 1
+key ArrowDown 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key Enter 1
+frames 2
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key Enter 1
+frames 10
+until 60 2 of 4
+# REEF
+key ArrowUp 1
+frames 1
+key ArrowUp 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key ArrowLeft 1
+frames 1
+key Enter 1
+frames 2
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key ArrowRight 1
+frames 1
+key Enter 1
+frames 10
+until 60 3 of 4
+frames 420
+measure stop
