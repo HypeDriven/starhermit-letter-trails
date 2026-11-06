@@ -19,7 +19,7 @@ import { bindings, requestRebind } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
 import { Content, Sess, Util, type Def } from "./game.ts";
-import { M, N, S, T } from "./i18n.ts";
+import { M, N, T, account } from "./i18n.ts";
 import * as audio from "./audio.ts";
 import * as platform from "./platform.ts";
 import {
@@ -31,10 +31,8 @@ import {
 // ------------------------------------------------------------------ layout
 interface Layout { lw: number; lh: number; sc: number; wide: boolean; short: boolean }
 function layoutNow(): Layout {
-  const f = frame();
-  const sc = ui.preferences().scale;
-  const sa = f.safeArea;
-  const lw = Math.max(1, (f.width - sa.left - sa.right) / sc), lh = Math.max(1, (f.height - sa.top - sa.bottom) / sc);
+  const v = ui.viewport!();
+  const lw = Math.max(1, v.width), lh = Math.max(1, v.height), sc = v.scale;
   return { lw, lh, sc, wide: lw >= 1024, short: lh <= 500 };
 }
 const lastSize = new Map<string, number>();
@@ -108,7 +106,6 @@ export function drawScreens(): void {
       case "settings": page("settings", L, settingsScreen); break;
     }
   }
-  toast(L);
   if (app.focusNext) {
     const age = f.frame - app.openedFrame;
     if (age >= 1) ui.setFocus(app.focusNext);
@@ -146,7 +143,7 @@ function page(key: string, L: Layout, build: (w: number, L: Layout) => void, wid
 const SYNC_LABELS: Record<string, string> = { synced: N("cloud synced"), saving: N("saving..."), error: N("sync error"), offline: N("offline") };
 function profileLine(): string {
   const name = platform.displayName();
-  if (platform.signedIn() && name) return `${S("playingAs", { name })} · ${T(SYNC_LABELS[platform.syncState()]!)}`;
+  if (platform.signedIn() && name) return `${T("Playing as {name}", { name })} · ${T(SYNC_LABELS[platform.syncState()]!)}`;
   const g = Sess.guestProfile();
   const guest = g.name === "Guest" ? T("Guest") : g.name;
   return platform.signedIn() ? T("Playing as {name}", { name: guest }) : T("Playing as {name} (local guest)", { name: guest });
@@ -165,8 +162,8 @@ function titleScreen(w: number): void {
     { id: "btn-help", text: T("How to Play"), act: () => openPage("help") },
     { id: "btn-settings", text: T("Settings"), act: () => openPage("settings") },
   ];
-  if (!platform.signedIn()) list.push({ id: "btn-signin", text: S("signIn"), act: signIn });
-  if (platform.inviteLink()) list.push({ id: "btn-invite", text: S("invite"), act: copyInvite });
+  if (!platform.signedIn()) list.push({ id: "btn-signin", text: account("signIn"), act: signIn });
+  if (platform.inviteLink()) list.push({ id: "btn-invite", text: account("invite"), act: copyInvite });
   stack("title-menu", list, w);
   ui.column("title-foot", () => para(profileLine(), w, "muted-center", "profile-line"), { width: w, align: "center" });
 }
@@ -265,7 +262,7 @@ const RULES = [
   N("<strong>Trace words.</strong> Drag (or use arrow keys + Enter) across a straight line of letters — horizontal, vertical, or diagonal — to spell a word from the list."),
   N("<strong>Both directions.</strong> Words may read forwards or backwards along the line."),
   N("<strong>Clean streaks.</strong> Invalid selections reset your clean bonus. Each word scores 20 points per letter, plus clean, speed, and daily-streak bonuses."),
-  N("<strong>Keyboard.</strong> <kbd data-key=\"up\">↑</kbd> <kbd data-key=\"down\">↓</kbd> <kbd data-key=\"left\">←</kbd> <kbd data-key=\"right\">→</kbd> move the cursor, <kbd data-key=\"select\">Enter/Space</kbd> starts or confirms a line, <kbd data-key=\"back\">Esc</kbd> cancels or pauses, <kbd data-key=\"hint\">H</kbd> gives a hint, <kbd data-key=\"camera\">C</kbd> resets the camera."),
+  N("help.keyboard"),
   N("<strong>Gamepad and touch.</strong> The D-pad or left stick moves the cursor, A starts or confirms a line, B cancels or pauses, Y gives a hint, X resets the camera. On a touch screen, drag a finger along the letters."),
 ];
 /** A rule card's translated markup: the <strong> lead-in and the text, <kbd> keys as the effective bindings. */
@@ -504,10 +501,3 @@ function resultsPanel(w: number): void {
   ], w);
 }
 
-// ------------------------------------------------------------------ the toast
-function toast(L: Layout): void {
-  const tt = app.toast;
-  if (!tt) return;
-  const w = Math.min(L.lw * 0.92, 420);
-  ui.place("toast", { anchor: "bottom", y: 16 }, () => ui.column("toast-col", () => para(tt.text, w - 36, "toast-text", "toast-text"), { style: "toast", align: "center" }));
-}

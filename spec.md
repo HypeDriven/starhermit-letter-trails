@@ -31,15 +31,13 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | `native/quality.ts` | The look per graphics level: the level's effects (`levelSettings()`) and the tier's art (the old presets and budgets) |
 | `native/audio.ts` | Opus one-shots per event on the runtime's buses; the ambience rendered once into a looping clip |
 | `native/platform.ts` | The save document (session.js view, foreign-save migration, conflict merge, legacy settings removal), player, invite link, platform clock, score posting through `score-script.js`, the board's top ten |
-| `native/i18n.ts` | Locale from the runtime's interface language; `T` / `N` / `M` over `src/i18n.js`, `S` over `src/sh-strings.js` |
+| `native/i18n.ts` | Locale from the runtime's interface language; `T` / `N` / `M` over the engine's `strings` (`assets/strings.json`), `account` for its `starhermit.*` lines |
 | `native/style.ts` | Registers `assets/ui-style.json`, the theme and serif font; the high-contrast tokens |
 | `native/game.ts` | Typed facade over the shared `src/*.js` modules |
 | `src/rules.js` | Pure deterministic rules engine: board generation, legality, commands, scoring, hashing, save migration |
 | `src/content.js` | Themes, six word banks, 40 journey levels, daily/practice/challenge definitions, tutorial lessons, offline validator |
 | `src/session.js` | Phase state machine, progress under the `lt:*` keys (through an injectable storage), achievements, streaks, replay envelopes and `replayVerify` |
 | `src/store.js` | The save document: `normalize`, `mergeDocs` (two devices' merge), `readForeign` (the old cloud slot), `docStorage` (a localStorage-like view) |
-| `src/i18n.js`, `src/locales/` | Localization core (`T`, `N`, `setLocale`) and catalogues keyed by the US-English text |
-| `src/sh-strings.js` | Account strings in the nine locales |
 | `src/util.js` | FNV-1a hash, mulberry32 PRNG, clock/date formatting, `utcDay` |
 | `score-script.js` | StarHermit platform script (`server=`): range-checks a ranked round's total and posts it to the `high-score` board |
 | `index.html`, `starhermit-files.json` | The engine's web loader and file index, written by `npm run package` (never edited by hand) |
@@ -372,14 +370,13 @@ device). The engine-owned effects are the level's own (`levelSettings()`): shado
 size, ambient occlusion (resolution, samples), bloom resolution, the grade and anti-aliasing; the
 table shows them at each tier's anchor level (quantum, molecular, terrestrial, galactic). The tier
 selects the game's art (the rest of the table), and the level's particle budget over the anchor's
-scales the sparkles within the tier (≤ 2×). Low keeps MSAA where the level asks for none (engine
-1.38.0 draws fog and translucent overlays off-colour without anti-aliasing). The runtime owns
+scales the sparkles within the tier (≤ 2×). The runtime owns
 render scale, the pixel-ratio cap, adaptive resolution, the frame-rate limit and readout. The board
 (keeping found words) is rebuilt when the tier's budget changes.
 
 | Tier | Shadows | AO | Bloom / grade | AA | Reflections | Detail | Particles | Materials | Atlas cell | Wood / paper | Bevel segments | Sparkles / motes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Low | off | off | off | MSAA | off | plain | off | Lambert | 128 px | — | — | — |
+| Low | off | off | off | off | off | plain | off | Lambert | 128 px | — | — | — |
 | Balanced | 1024² | off | on | FXAA | on | detailed | low | Standard | 192 px | 512 px | 2 | 0.75× / 0.75× |
 | High | 2048² | on | on | SMAA | on | detailed | high | Physical | 256 px | 512 px | 3 | 1× / 1× |
 | Ultra | 4096² | high | on | MSAA | on | detailed | high | Physical | 384 px | 1024 px | 4 (12-sided pencils) | 1.5× / 1.5× |
@@ -435,12 +432,12 @@ Every player-visible string is drawn through `T('<US-English text>', vars)` (`na
 `src/i18n.js`) each frame, in the locale nearest the runtime's interface language
 (`preferences().language`: the player's choice in Options › Language, else the account's preferred
 language or the device's); a change shows on the next frame and never touches the round.
-Catalogues in `src/locales/` are keyed by the US-English text (en-US is the identity, en-GB lists
+Tables in `assets/strings.json` are keyed by the US-English text (en-US is the identity, en-GB lists
 spelling changes, es-ES and fr-CA list their differences from es-419 and fr-FR). Lessons, challenge
 and practice labels, achievements and theme names translate at display time; screen titles are
 `[key, vars]` pairs. The How to Play cards keep their authored `<strong>` / `<kbd>` markup as keys:
 the lead-in draws bold and each `<kbd data-key>` shows the action's effective keys. Account strings
-(sign in, invite, toasts, "Playing as", the leaderboard line) come from `src/sh-strings.js`.
+(sign in, invite, toasts, the leaderboard line) are the engine's `starhermit.*` strings.
 
 Word banks are English words and are content, not UI copy: the letters on the board *are* the
 puzzle, so every locale plays the same English boards with translated theme names (§17).

@@ -24,7 +24,7 @@ import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
 import { Content, Rules, Sess, Util, type Achievement, type Cell, type Command, type Def, type Settings, type State } from "./game.ts";
 import * as audio from "./audio.ts";
-import { M, N, S, T, type Msg } from "./i18n.ts";
+import { M, N, T, account, type Msg } from "./i18n.ts";
 import * as platform from "./platform.ts";
 import { lookFor } from "./quality.ts";
 import * as render from "./render.ts";
@@ -68,7 +68,6 @@ export const app = {
   /** Compact layouts: the open drawer. */
   drawer: null as "words" | "status" | null,
   live: null as { msg: Msg; until: number } | null,
-  toast: null as { text: string; until: number } | null,
 };
 let actionCounter = 0;
 const now = (): number => frame().time;
@@ -80,9 +79,10 @@ export function announce(msg: Msg, assertive = false): void {
   ui.announce(text.slice(0, 500), { politeness: assertive ? "assertive" : "polite" });
   if (!assertive) app.live = { msg, until: now() + 5 };
 }
+let shownToast: ui.Toast | null = null;
 export function toast(text: string): void {
-  app.toast = { text, until: now() + 3.2 };
-  ui.announce(text, { politeness: "polite" });
+  shownToast?.dismiss();
+  shownToast = ui.toast!(text, { duration: 3.2, style: ["toast", "toast-text"], dismissible: false });
 }
 /** Timers on the game's clock (the old setTimeout calls). */
 const timers: { at: number; fn: () => void }[] = [];
@@ -262,8 +262,8 @@ function finishRound(): void {
 export function leaderboardLine(): string | null {
   const r = app.lb;
   if (!r) return null;
-  if (r === "posting") return S("lbPosting");
-  return !r.posted ? S("lbNotPosted") : r.rank ? S("lbRank", { rank: r.rank }) : S("lbPosted");
+  if (r === "posting") return account("leaderboardPosting");
+  return !r.posted ? account("leaderboardNotPosted") : r.rank ? account("leaderboardRank", { rank: r.rank }) : account("leaderboardPosted");
 }
 
 export function leaveRound(): void {
@@ -428,7 +428,7 @@ export function tutorialSkip(): void {
 export function copyInvite(): void {
   const link = platform.inviteLink();
   if (!link) return;
-  try { clipboard.writeText(link); toast(S("copied")); } catch { toast(S("copyFailed")); }
+  try { clipboard.writeText(link); toast(account("inviteCopied")); } catch { toast(account("inviteFailed")); }
 }
 export function signIn(): void { void requestSignIn().catch(() => undefined); }
 
@@ -560,7 +560,7 @@ onStart(() => {
   show("title", "btn-play");
 });
 onPreferencesChange((p) => render.setReducedMotion(p.reducedMotion));
-onSessionEnded(() => toast(S("signedOut"))); // keep playing locally
+onSessionEnded(() => toast(account("signedOut"))); // keep playing locally
 // A merge from another device or the old build rewrote the document: pick up its settings.
 platform.onMerged(() => { app.settings = Sess.loadSettings(); });
 let hidden = false;
@@ -586,7 +586,6 @@ onUpdate((dt) => {
   const t = now();
   for (let i = timers.length - 1; i >= 0; i--) if (timers[i]!.at <= t) { const fn = timers[i]!.fn; timers.splice(i, 1); fn(); }
   if (app.live && app.live.until < t) app.live = null;
-  if (app.toast && app.toast.until < t) app.toast = null;
   platform.flushDirty();
 });
 /** The share of the window's height the board may use (screens.ts: the compact tray takes the rest). */

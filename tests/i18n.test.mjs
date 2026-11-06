@@ -2,10 +2,13 @@
 // Keys are the US-English source strings (see tests/i18n-keys.mjs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DICTS, LOCALES, T, setLocale } from '../src/i18n.js';
-import { shStrings } from '../src/sh-strings.js';
+import { readFileSync } from 'node:fs';
 import { ALL } from './i18n-keys.mjs';
 
+const DICTS = JSON.parse(readFileSync(new URL('../assets/strings.json', import.meta.url), 'utf8'));
+const LOCALES = Object.keys(DICTS);
+const PARENT = { 'en-GB': 'en-US' };
+const T = (l, k) => { for (let c = l; c; c = PARENT[c]) if (Object.hasOwn(DICTS[c], k)) return DICTS[c][k]; return k; };
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
 
 test('the key set is non-trivial', () => {
@@ -29,11 +32,6 @@ test('no locale carries keys that no longer exist', () => {
   }
 });
 
-test('StarHermit account strings exist in all nine locales', () => {
-  for (const locale of LOCALES) assert.ok(shStrings([locale]).signIn, locale);
-  assert.notEqual(shStrings(['de-DE']).signIn, shStrings(['en-US']).signIn);
-});
-
 test('rich-text keys keep their inline markup in every locale', () => {
   const tags = (s) => (String(s).match(/<[^>]+>/g) || []).join('');
   for (const locale of LOCALES.filter((l) => l !== 'en-US')) {
@@ -41,17 +39,8 @@ test('rich-text keys keep their inline markup in every locale', () => {
   }
 });
 
-test('T falls back to the key and fills placeholders; regional variants inherit', () => {
-  setLocale('de-DE');
-  assert.equal(T('Not a real key {x}', { x: 1 }), 'Not a real key 1');
-  assert.equal(T('Level {n}', { n: 2 }), 'Level 2');
-  assert.equal(T('Find {n} words', { n: 5 }), 'Finde 5 Wörter');
-  setLocale('fr-CA');
-  assert.equal(T('Score:'), 'Pointage :');
-  assert.equal(T('Hint'), 'Indice');
-  setLocale('es-ES');
-  assert.equal(T('Settings'), 'Ajustes');
-  assert.equal(T('Hint'), 'Pista');
-  setLocale('en-US');
-  assert.equal(T('Hint'), 'Hint');
+test('regional variants read their own or the shared text', () => {
+  assert.equal(T('de-DE', 'Find {n} words'), 'Finde {n} Wörter');
+  assert.equal(T('fr-CA', 'Score:'), 'Pointage :');
+  assert.equal(T('en-US', 'Score:'), 'Score:');
 });

@@ -4,8 +4,8 @@
 // complete, cursor moves, hint shimmer, achievement, back), and the quiet
 // ambience of a round: lowpassed noise (320 Hz) whose level a 0.11 Hz LFO
 // swells by ±0.02 around 0.05. The browser build ran that as a live noise
-// loop and oscillator; here it is rendered once into one seamless LFO cycle
-// (createClip, a slice a frame) and looped on the music bus while a round is
+// loop and oscillator; here it is rendered offline once into one seamless LFO
+// cycle and looped on the music bus while a round is
 // active (the runtime has no ambience bus; its gain folds in the old
 // ambience slider's 40 % default). The runtime's Options own the volumes, the
 // mute and the voice limit; the back click plays on the "interface" bus, the
@@ -15,7 +15,7 @@
 // Every clip loads at once in onStart (the engine hands each loaded clip to
 // the mixer, natively and in a browser); the ambience still waits for the
 // mixer to run (in a browser, the first press).
-import { context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
+import { OfflineAudioContext, SoundBank, context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
 
 const SFX: Record<string, string[]> = {
   tick: ["tile-tick-1", "tile-tick-2", "tile-tick-3"],
@@ -29,54 +29,47 @@ const SFX: Record<string, string[]> = {
   uiBack: ["ui-back-1"],
 };
 export type Sfx = keyof typeof SFX;
-const clips = new Map<string, AudioClip>();
-const cursor = new Map<string, number>();
+const banks = new Map<string, SoundBank>();
 
-/** Loads every clip at once (onStart); a cue whose clip is still loading is silent. */
+/** Loads every clip at once (onStart); an event whose clips are still loading is silent. */
 export function loadSfx(): void {
-  for (const list of Object.values(SFX)) for (const name of list) {
-    loadClip(`sfx/${name}.opus`).then((c) => { clips.set(name, c); }, (e: unknown) => console.warn(`sfx ${name}: ${String(e)}`));
+  for (const [event, names] of Object.entries(SFX)) {
+    void Promise.all(names.map((name) => loadClip(`sfx/${name}.opus`).catch((e: unknown) => { console.warn(`sfx ${name}: ${String(e)}`); return null; }))).then((loaded) => {
+      const clips = loaded.filter((c) => c !== null);
+      if (clips.length) banks.set(event, new SoundBank({ clips, order: "sequence", bus: event === "uiBack" ? "interface" : "effects" }));
+    });
   }
+  void renderAmbience().then((c) => { ambClip = c; }, (e: unknown) => console.warn(`audio: ${String(e)}`));
 }
 
-/** src/audio.js sfx.<event>(): the event's next variant (a still-loading one is silent). */
+/** src/audio.js sfx.<event>(): the event's next variant (silent while its clips load). */
 export function play(event: Sfx): void {
-  const names = SFX[event];
-  if (!names) return;
-  const i = (cursor.get(event) ?? 0) % names.length;
-  const file = names[i]!;
-  const clip = clips.get(file);
-  if (!clip) return;
-  cursor.set(event, i + 1);
-  try { playClip(clip, { bus: event === "uiBack" ? "interface" : "effects" }); }
+  try { banks.get(event)?.play(); }
   catch { /* the mixer is full this frame: skip it */ }
 }
 
 // -- the ambience -----------------------------------------------------------------------------
 const RATE = 11025;
 const N = Math.round(RATE / 0.11);
-const amb = new Float32Array(N);
-let ambPos = 0;
-let ambY = 0;
-let seed = 991;
-function noise(): number {
-  // mulberry32 (src/util.js), as the old noise buffer was seeded.
-  seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t ^= t + Math.imul(t >> 7, 61 | t);
-  return (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
-}
-/** One LFO cycle, a slice at a time: a one-pole lowpass run twice over the noise so the loop joins without a click. */
-function renderAmbience(count: number): boolean {
-  const k = (2 * Math.PI * 320) / RATE;
-  const end = Math.min(2 * N, ambPos + count);
-  for (; ambPos < end; ambPos++) {
-    const i = ambPos % N;
-    if (ambPos < N) amb[i] = noise();
-    ambY += k * (amb[i]! - ambY);
-    if (ambPos >= N) amb[i] = ambY * 2.2 * (0.05 + 0.02 * Math.sin((2 * Math.PI * i) / N));
-  }
-  return ambPos >= 2 * N;
+/** One LFO cycle over a noise loop of the same length: the second cycle of the render is periodic, so the loop joins without a click. */
+async function renderAmbience(): Promise<AudioClip> {
+  const off = new OfflineAudioContext(1, 2 * N, RATE);
+  const noise = off.createNoise({ seed: 991, seconds: N / RATE });
+  const lp = off.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 320;
+  const swell = off.createGain();
+  swell.gain.value = 2.2 * 0.05;
+  const lfo = off.createOscillator();
+  lfo.frequency.value = RATE / N;
+  const depth = off.createGain();
+  depth.gain.value = 2.2 * 0.02;
+  lfo.connect(depth).connect(swell.gain);
+  noise.connect(lp).connect(swell).connect(off.destination);
+  noise.start();
+  lfo.start();
+  const r = await off.startRendering();
+  return createClip([r.getChannelData(0).slice(N)], RATE);
 }
 let ambClip: AudioClip | null = null;
 let ambVoice: Sound | null = null;
@@ -87,14 +80,10 @@ export function setAmbience(on: boolean): void {
   if (!on && ambVoice) { try { ambVoice.stop(); } catch { /* already gone */ } ambVoice = null; }
 }
 
-/** Each frame once the mixer runs: the ambience loop (rendered a slice a frame, then looped). */
+/** Each frame once the mixer runs: the ambience loop. */
 export function update(): void {
   if (context.state !== "running") return;
-  if (!ambClip) {
-    if (!renderAmbience(6000)) return;
-    try { ambClip = createClip([amb], RATE); } catch (e) { console.warn(`audio: ${String(e)}`); ambPos = 0; }
-    return;
-  }
+  if (!ambClip) return;
   if (wantAmbience && !ambVoice) {
     try { ambVoice = playClip(ambClip, { bus: "music", gain: 0.4, loop: true }); } catch { ambVoice = null; }
   }
