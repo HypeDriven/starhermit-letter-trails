@@ -1,3 +1,6 @@
+import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
+// localization-runtime:attached
+import { openLocalizedOptions as __l10nOptions } from "./l10n/menu.ts";
 // The browser build's semantic HTML shell (index.html + src/ui.js) as
 // starhermit:ui, built every frame over the board: the title over the key
 // art (Play, Daily Challenge, Journey, Practice, Challenge, How to Play,
@@ -14,7 +17,23 @@
 // rail with Pause / Hint / Reset Camera on the right) and compact (the
 // Words / Hint / Pause / Status tray at the bottom, the rails as drawers
 // over the board, the announcement line above the tray).
-import { frame, openMenu } from "starhermit:engine";
+// The browser build's semantic HTML shell (index.html + src/ui.js) as
+// starhermit:ui, built every frame over the board: the title over the key
+// art (Play, Daily Challenge, Journey, Practice, Challenge, How to Play,
+// Settings, Sign in / Invite, the player line), the mode setup (label,
+// description, the board's facts, Start / Back), the Journey grid (40 levels,
+// mastery stars, done and locked), Practice, Challenge, the pause menu,
+// Settings (the runtime's Options and key bindings, Replay Tutorial), How to
+// Play (the four rule cards with the effective keys, and pads and touch),
+// the tutorial lessons, the results (score breakdown, time, invalid
+// selections, best, the challenge constraint, achievements, the leaderboard
+// line and top ten, Retry / Next / Menu), the HUD and the account toast.
+// The old media queries are layouts picked by the window's logical size:
+// wide (≥ 1024 px: the objective and word list rail on the left, the status
+// rail with Pause / Hint / Reset Camera on the right) and compact (the
+// Words / Hint / Pause / Status tray at the bottom, the rails as drawers
+// over the board, the announcement line above the tray).
+import { frame } from "starhermit:engine";
 import { bindings, requestRebind } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
@@ -50,9 +69,9 @@ function button(b: Btn, width: number | null = null): void {
   const s: ui.Style = width != null ? { width } : {};
   if (width != null && buttonWidth(b.text, style) > width) {
     const inner = Math.max(20, width - 40);
-    opts.content = () => { ui.style({ text: { align: "center" } }).paragraph(b.text, inner); };
+    opts.content = () => { ui.style(__l10nStyle({ text: { align: "center" } })).paragraph(b.text, inner); };
   }
-  if (ui.style(style, s).id(b.id).button(b.text, opts) && fresh()) b.act();
+  if (ui.style(__l10nStyle(style), __l10nStyle(s)).id(b.id).button(b.text, opts) && fresh()) b.act();
 }
 /** index.html .row with flex-direction column / align stretch: one full-width button a line. */
 function stack(label: string, list: Btn[], width: number): void {
@@ -67,14 +86,14 @@ function flow(label: string, list: Btn[], width: number, gap = 10): void {
 /** Text up to `width` wide: one label when it fits, else a paragraph. */
 function para(text: string, width: number, cls = "body", id?: string): void {
   if (!text) return;
-  let u = ui.style(cls);
+  let u = ui.style(__l10nStyle(cls));
   if (id) u = u.id(id);
   if (textWidth(text, cls) <= width) u.label(text);
   else u.paragraph(text, width);
 }
 function heading(cls: string, text: string, width: number, id?: string): void {
   if (textWidth(text, cls, "heading") <= width) (id ? ui.id(id) : ui).style(cls).heading(text);
-  else ui.style(cls).paragraph(text, width);
+  else ui.style(__l10nStyle(cls)).paragraph(text, width);
 }
 function fmtTime(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -217,7 +236,7 @@ function journeyScreen(w: number): void {
             ? (isDone ? N("Level {n} (mastery), completed") : unlocked ? N("Level {n} (mastery)") : N("Level {n} (mastery), locked"))
             : (isDone ? N("Level {n}, completed") : unlocked ? N("Level {n}") : N("Level {n}, locked"));
           const face = `${lv.mechanics.mastery ? "★" : ""}${n}`;
-          const pressed = ui.style(isDone ? "btn-done" : "btn-level", { width: bw }).id(`level-${n}`)
+          const pressed = ui.style(__l10nStyle(isDone ? "btn-done" : "btn-level"), __l10nStyle({ width: bw })).id(`level-${n}`)
             .button(T(key, { n }), { disabled: !unlocked, content: () => ui.label(face) });
           if (pressed && unlocked && fresh()) pickLevel(lv as Def);
         }
@@ -286,7 +305,7 @@ function settingsScreen(w: number): void {
   heading("h2", T("Settings"), w, "settings-h");
   para(T("Sound, graphics, language, larger text, high contrast and reduced motion are in the StarHermit Options."), w, "body", "options-note");
   stack("settings-btns", [
-    { id: "btn-options", text: T("Open Options"), act: () => openMenu() },
+    { id: "btn-options", text: T("Open Options"), act: () => __l10nOptions() },
     { id: "btn-rebind", text: T("Key bindings"), act: () => requestRebind() },
   ], w);
   flow("settings-nav", [
@@ -318,7 +337,7 @@ function wordsRail(w: number): void {
   ui.column("word-list", () => st.words.forEach((wd, i) => {
     ui.row(`word-${i}`, () => {
       const text = wd.found ? `${wd.word} ✓` : wd.word;
-      const r = ui.style(wd.found ? "word-found" : "word").id(`word-${i}-t`).label(text);
+      const r = ui.style(__l10nStyle(wd.found ? "word-found" : "word")).id(`word-${i}-t`).label(text);
       // li.found: line-through.
       if (wd.found) {
         const sc = ui.preferences().scale;
@@ -419,7 +438,7 @@ function drawer(L: Layout, trayPx: number, live: boolean): void {
         const c = ui.column(`${key}-in`, () => {
           ui.row(`${key}-head`, () => {
             ui.spacer();
-            if (ui.style("btn").id(`${key}-close`).button(left ? T("Close word list") : T("Close status"), { content: () => ui.label("✕") }) && fresh()) app.drawer = null;
+            if (ui.style(__l10nStyle("btn")).id(`${key}-close`).button(left ? T("Close word list") : T("Close status"), { content: () => ui.label("✕") }) && fresh()) app.drawer = null;
           }, { width: inner - (scroll ? 14 : 0) });
           if (left) wordsRail(inner - (scroll ? 14 : 0));
           else statusRail(inner - (scroll ? 14 : 0), live);
@@ -467,7 +486,7 @@ function scoreRow(id: string, label: string, value: string, total: boolean, w: n
   ui.row(id, () => {
     para(label, w - 80, total ? "score-total-label" : "score-label");
     ui.spacer();
-    ui.style(total ? "score-total-value" : "score-value").id(`${id}-v`).label(value);
+    ui.style(__l10nStyle(total ? "score-total-value" : "score-value")).id(`${id}-v`).label(value);
   }, { width: w, align: "center", style: total ? "score-total" : "score-row" });
 }
 function resultsPanel(w: number): void {

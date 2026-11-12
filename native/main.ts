@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Letter Trails on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules (src/rules.js), content
@@ -590,10 +591,14 @@ onUpdate((dt) => {
 });
 /** The share of the window's height the board may use (screens.ts: the compact tray takes the rest). */
 export const view = { free: 1 };
-onRender(() => {
+onRender(__l10nRender(() => {
   hudRects.length = 0;
   drawScreens();
   pointerInput();
   const f = frame();
   render.update(frameDt, f.width, f.height, view.free);
-});
+}));
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);
