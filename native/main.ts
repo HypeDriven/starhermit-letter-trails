@@ -19,7 +19,7 @@ import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // fixed step while it is active, so pauses, a hidden window and slow frames
 // never cost time and play scripts replay exactly.
 import "./i18n.ts";
-import { clipboard, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
+import { afterRender, clipboard, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
 import { onAction, onPointerButton, onPointerMove, onTouch } from "starhermit:input";
 import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
@@ -75,9 +75,19 @@ const now = (): number => frame().time;
 
 // ------------------------------------------------------------------ helpers
 /** ui.js announce(): polite text also shows in the live line for 5 s; assertive is for screen readers only. */
+let pendingAnnouncement: { text: string; assertive: boolean } | null = null;
 export function announce(msg: Msg, assertive = false): void {
-  const text = M(msg);
-  ui.announce(text.slice(0, 500), { politeness: assertive ? "assertive" : "polite" });
+  const text = M(msg).slice(0, 500);
+  if (pendingAnnouncement) {
+    pendingAnnouncement = { text, assertive };
+    return;
+  }
+  pendingAnnouncement = { text, assertive };
+  afterRender(() => {
+    const pending = pendingAnnouncement;
+    pendingAnnouncement = null;
+    if (pending) ui.announce(pending.text, { politeness: pending.assertive ? "assertive" : "polite" });
+  });
   if (!assertive) app.live = { msg, until: now() + 5 };
 }
 let shownToast: ui.Toast | null = null;
