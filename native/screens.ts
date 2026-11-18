@@ -107,7 +107,7 @@ const themeName = (key: string): string => (BANK_NAMES[key] ? T(BANK_NAMES[key]!
 let blurFrames = 0;
 /** After a HUD button: the board keeps the arrows and Enter (the focus is let go now and on the next frames). */
 function blur(): void { ui.setFocus(null); blurFrames = 2; }
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   const f = frame();
   if (blurFrames > 0) { blurFrames--; ui.setFocus(null); }
@@ -520,3 +520,10 @@ function resultsPanel(w: number): void {
   ], w);
 }
 
+
+export function drawScreens(): void {
+  if (app.screen !== "help") { drawScreensImmediate(); return; }
+  const actions = ["up","down","left","right","select","back","hint","camera"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
+}

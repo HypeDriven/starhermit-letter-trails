@@ -15,7 +15,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 | Genre | Single-player word search / observation puzzle |
 | Players | 1 |
 | Session length | 1–5 minutes per board; ~8 minutes for a daily plus a journey level |
-| Platforms | StarHermit engine 1.39.0 script game (host API 1.39, `engine.minor=39`): natively in the StarHermit client and in browsers through the engine's web runtime (desktop and mobile, portrait and landscape) |
+| Platforms | StarHermit engine 1.44.1 script game (host API 1.44, `engine.minor=44`): natively in the StarHermit client and in browsers through the engine's web runtime (desktop and mobile, portrait and landscape) |
 | Rendering | `starhermit:scene` (three.js r185 model) — a 3D desk with box tiles, one directional key light, a baked letter atlas; all menus and the HUD are `starhermit:ui`, built every frame over the scene |
 | Persistence | The engine save (`starhermit:storage` `saves`): one document holding the `lt:*` keys (settings, journey progress, best scores, daily streak, achievements, guest id), on the device and, signed in, in the cloud slot |
 | Network | Optional. Platform calls only when signed in (save sync, score posting, leaderboard, invite link) plus the platform clock |
@@ -24,7 +24,7 @@ a themed word off the board, and clear every word before the desk clock runs lon
 
 | Path | Owns |
 |---|---|
-| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.39.0 / minor 32, capabilities `platform,storage,clipboard`, `control.*` and `engine.gamepad.*` defaults per action |
+| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.44.1 / minor 32, capabilities `platform,storage,clipboard`, `control.*` and `engine.gamepad.*` defaults per action |
 | `native/main.ts` | Entry: app state, round lifecycle (setup → tutorial → active ⇄ paused → results), selection from keys, pointer and touch drags, hints, the fixed-step clock, results, achievements, ranked posting, lifecycle (a hidden window pauses) |
 | `native/screens.ts` | Every screen, the wide-layout rails, the compact tray and drawers, the announcement line and toast (`starhermit:ui`) |
 | `native/render.ts` | The board on `starhermit:scene`: desk, paper, tiles with per-letter UVs into the atlas, pencils, selection ribbon, motes, sparkles, lights, camera framing, picking, the post chain per graphics tier |
@@ -254,7 +254,7 @@ tray, a drawer or its scrim belong to the UI.
 **Buttons.** Every button takes the pointer, touch, Tab + Enter and the pad (the runtime's focus).
 Wide layouts show Pause, Hint (H) and Reset Camera (C) in the status rail; compact layouts show
 Words, Hint, Pause and Status in the bottom tray. After a HUD button the focus is let go, so the
-arrows and Enter return to the board (from host API 1.39 they stay the game's while no widget has
+arrows and Enter return to the board (from host API 1.44 they stay the game's while no widget has
 focus).
 
 **Input locking.** Board input acts only while a round is active (not in the tutorial, pause or
@@ -469,7 +469,7 @@ puzzle, so every locale plays the same English boards with translated theme name
 
 `starhermit.txt` declares `name`, `description`, `owner`, `server=score-script.js`, `cover=cover.jpg`,
 `launch=index.html` (the engine's web loader), `engine.entry=native/main.ts`,
-`engine.version=1.39.0`, `engine.minor=39`, `engine.capabilities=platform,storage,clipboard`, and the
+`engine.version=1.44.1`, `engine.minor=44`, `engine.capabilities=platform,storage,clipboard`, and the
 `control.*` / `engine.gamepad.*` defaults of §6.
 
 * **Player** — signed in, the title shows "Playing as <display name> · <sync status>"; a guest sees
@@ -583,7 +583,7 @@ does not reach the results.
   announcement line.
 * **The browser build's colour-vision, left-handed, hold-to-confirm and haptics settings** were
   stored but never read; they are not offered (the runtime's Options cover contrast and motion).
-* **Pointer drags are checked in the browser only**: the 1.39.0 runtime's play scripts have no
+* **Pointer drags are checked in the browser only**: the 1.44.1 runtime's play scripts have no
   drag step, so native scripts play by keys.
 * **Ranked posting** offers the client's total to `score-script.js`, which range-checks it; there is
   no server-side replay of the command log.
@@ -607,3 +607,9 @@ does not reach the results.
 The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-SG`, `en-HK`, `en-BQ`, `es-CO`, `de-IT`, `fr-IT`, `es-CL`, `es-AR`, `es-EC`, `de-BR`. These reuse the corresponding existing translations in their language family. The runtime can resolve the exact regional tag. Language selection is available from the game’s Options panel or F2 and is saved per player in `ui.language`. Changes apply during play. Additional national, regional and indigenous language packs are only shipped once every English message has a translation with intact placeholders and markup. Complete additional language tables: `ja-JP`, `nl-BE`, `zh-SG`, `ms-SG`, `ta-SG`, `zh-HK`, `yue-HK`, `nl-NL`, `fi-FI`, `sv-FI`, `et-EE`, `id-ID`, `vi-VN`, `sl-IT`, `da-DE`, `ru-FI`, `ru-EE`, `lb-BE`, `co-FR`, `eu-FR`, `ca-FR`, `oc-FR`, `fur-IT`, `ca-IT`, `oc-IT`, `ca-ES`, `eu-ES`, `gl-ES`, `su-ID`, `bew-ID`, `km-VN`.
 
 <!-- regional-localization:end -->
+
+## Engine 1.44.1
+
+Browser play uses the WebGPU-only StarHermit 1.44.1 web runtime. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
+
+The help screen replays through retained native UI while its contents, options, layout and key bindings are unchanged.
