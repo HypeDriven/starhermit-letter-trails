@@ -562,6 +562,7 @@ export function applyLook(next: Look): void {
     vignette: { amount: 0.2, inner: 0.38, outer: 0.85 },
   } : null;
   renderer.antialias = next.antialias;
+  renderer.motionBlur = next.bloom !== null ? { intensity: 0.25, samples: 8, maxPixels: 16, targetFps: 60, camera: false } : null;
   renderer.shadowMap.enabled = next.shadows > 0;
   keyLight.castShadow = next.shadows > 0;
   // The level's map size: at engine.minor ≥ 23 the engine keeps whatever the game sets.
