@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-09-01T07:01:03.087254+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-26T21:10:29.793101+00:00",
+    "coverArtUpdatedAt": "2026-11-27T17:07:01.608371+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-26T21:10:29.781028+00:00",
+      "deployedAt": "2026-11-27T17:07:01.597852+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.51.0",
+      "engineVersion": "1.53.0",
       "deployWarning": null
     },
     "description": "Trace straight lines through a letter grid to find and clear themed hidden words.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-26T21:10:30.070Z",
-  "sourceCommit": "099ba36b3be21c1259157e9f3e1704b4318b09c2",
-  "bytesReceived": 17935924,
-  "archiveSha256": "fa1bbfcc2e41a1377bf93a21cde8daa40c5b70b068ddd3ea426bde2003ba0042",
+  "publishedAt": "2026-11-27T17:07:01.907Z",
+  "sourceCommit": "b660bd5eb80b9097f43eecee3286209261a55163",
+  "bytesReceived": 17935918,
+  "archiveSha256": "1853ae09eb8c6a94f566401d3868ee9c2d264c722533de4104058d225b1adac2",
   "indexSha256": "160a4df0897289c3cb2411d00bdbbb6bb972b1c1375b7892f62a3371fa9d9cba",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 17935924,
+    "bytesReceived": 17935918,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.51.0",
+    "engineVersion": "1.53.0",
     "deployWarning": null
   },
   "liveVerification": {
